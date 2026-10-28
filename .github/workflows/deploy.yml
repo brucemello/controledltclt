@@ -72,7 +72,18 @@ jobs:
           done
 
       - name: Publicar (clasp push)
-        run: clasp push -f
+        run: |
+          set -uo pipefail
+          clasp --version
+          clasp push -f 2>&1 | tee /tmp/push.log
+          codigo=${PIPESTATUS[0]}
+          # Expõe a saída como anotações (visíveis no resumo da execução)
+          grep -v '^\s*$' /tmp/push.log | head -8 | while IFS= read -r l; do echo "::notice title=clasp push::$l"; done
+          # Algumas versões do clasp saem com 0 mesmo quando a API recusa o envio
+          if [ "$codigo" -ne 0 ] || grep -qiE 'error|erro|failed|denied|permission|invalid|not found|insufficient' /tmp/push.log; then
+            echo "::error title=clasp push falhou::$(grep -iE 'error|erro|failed|denied|permission|invalid|not found|insufficient' /tmp/push.log | head -1)"
+            exit 1
+          fi
 
       - name: Conferir o que ficou no Apps Script
         run: |
