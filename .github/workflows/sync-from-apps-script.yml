@@ -1,0 +1,62 @@
+name: Sincronizar do Apps Script (clasp pull)
+
+# Baixa o código atual do projeto Apps Script e abre um Pull Request com as diferenças.
+# Use quando alguém editar direto no editor do Apps Script.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configurar credenciais do clasp
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          if grep -q '"tokens"' "$HOME/.clasprc.json"; then PKG=@google/clasp@3; else PKG=@google/clasp@2.4.2; fi
+          npm install -g "$PKG"
+          printf '{"scriptId":"%s","rootDir":"src"}\n' "$SCRIPT_ID" > .clasp.json
+
+      - name: Baixar código remoto
+        run: |
+          set -euo pipefail
+          rm -f src/*.gs src/*.js src/*.html
+          clasp pull
+          # Arquivos remotos podem chegar como .js; padroniza para .gs
+          for f in src/*.js; do [ -e "$f" ] && mv "$f" "${f%.js}.gs"; done
+          rm -f .clasp.json "$HOME/.clasprc.json"
+          git status --short
+
+      - name: Abrir Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard src)" ]; then
+            echo "Nada a sincronizar: o repositório já está igual ao Apps Script."; exit 0
+          fi
+          BRANCH="sync/apps-script-$(date -u +%Y%m%d-%H%M)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A src
+          git commit -m "Sincroniza código editado no Apps Script"
+          git push origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "Sincronização do Apps Script ($(date -u +%d/%m %H:%M) UTC)" \
+            --body "Código baixado do projeto Apps Script via clasp pull. Revise as diferenças antes de aprovar: o merge na main dispara o deploy."

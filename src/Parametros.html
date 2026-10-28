@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; padding: 14px; background: #f4f6f9; color: #333; margin: 0; font-size: 13px; }
+
+    .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid #0052CC; margin-bottom: 10px; }
+    .tab-btn { padding: 9px 12px; cursor: pointer; background: #e9f2ff; border: none; font-weight: bold; color: #0052CC; border-radius: 4px 4px 0 0; font-size: 12px; }
+    .tab-btn.active { background: #0052CC; color: #fff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+    .card h4 { margin: 0 0 8px; font-size: 13px; color: #172b4d; }
+    .meta { color: #6b778c; font-size: 11px; }
+
+    .grupo-time { margin-bottom: 8px; }
+    .grupo-time .nome { font-weight: bold; font-size: 12px; color: #172b4d; margin-bottom: 3px; }
+    .chk { display: inline-flex; align-items: center; gap: 4px; margin: 2px 12px 2px 0; font-size: 12px; cursor: pointer; }
+    .todos { display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 12px; padding-bottom: 6px; margin-bottom: 8px; border-bottom: 1px solid #eee; cursor: pointer; }
+
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: bold; margin-left: 4px; }
+    .badge-ok { background: #e3fcef; color: #006644; }
+    .badge-warn { background: #fffae6; color: #974f0c; }
+    .badge-err { background: #ffebe6; color: #bf2600; }
+
+    input[type="text"], input[type="number"] { width: 100%; padding: 7px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+    input.invalido { border-color: #de350b; background: #fff5f3; }
+
+    .btn { background: #0052CC; color: #fff; padding: 9px 14px; border: 1px solid #0052CC; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; width: 100%; }
+    .btn:disabled { background: #a5adba; border-color: #a5adba; cursor: not-allowed; }
+    .btn-sec { background: #fff; color: #0052CC; }
+    .btn-success { background: #28a745; border-color: #28a745; }
+    .btn-danger { background: #de350b; border-color: #de350b; }
+    .btn-dark { background: #172b4d; border-color: #172b4d; }
+    .linha-btn { display: flex; gap: 8px; margin-top: 8px; }
+
+    #status { display: none; margin-bottom: 10px; font-size: 12px; font-weight: bold; padding: 8px 10px; border-radius: 4px; white-space: pre-wrap; }
+
+    .confirm { display: none; background: #fffae6; border: 1px solid #ffe380; padding: 10px; border-radius: 6px; margin-top: 8px; font-size: 12px; }
+
+    #previewArea { margin-top: 10px; }
+    .preview-time { border: 1px solid #dfe1e6; border-radius: 6px; margin-bottom: 10px; background: #fff; }
+    .preview-head { background: #f4f5f7; padding: 6px 10px; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; gap: 8px; border-radius: 6px 6px 0 0; }
+    .preview-msg { padding: 10px; font-size: 12px; line-height: 1.5; border-top: 1px dashed #dfe1e6; word-break: break-word; }
+    .preview-msg a { color: #0052CC; }
+    .preview-sub { padding: 4px 10px; font-size: 11px; font-weight: bold; color: #6b778c; background: #fafbfc; border-top: 1px solid #dfe1e6; }
+    .preview-email iframe { width: 100%; height: 440px; border: 0; background: #fff; display: block; }
+
+    table.table-regras { width: 100%; border-collapse: collapse; margin-bottom: 10px; background: #fff; }
+    table.table-regras th, table.table-regras td { border: 1px solid #ddd; padding: 6px; text-align: center; font-size: 12px; }
+    table.table-regras th { background: #0052CC; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="tabExecutar">Análise de SLA</button>
+    <button class="tab-btn" data-tab="tabDisparos">📤 Disparos</button>
+    <button class="tab-btn" data-tab="tabRegras">Regras (Semestral)</button>
+    <button class="tab-btn" data-tab="tabLooker">Dashboard Looker</button>
+    <button class="tab-btn" data-tab="tabManual">📖 Manual</button>
+  </div>
+
+  <div id="status"></div>
+
+  <!-- ABA 1: ANÁLISE -->
+  <div id="tabExecutar" class="tab-content active">
+    <div class="card">
+      <h4>Projetos a analisar</h4>
+      <label class="todos"><input type="checkbox" id="chkTodosProjetos" checked> Selecionar todos</label>
+      <div id="listaProjetos" class="meta">Carregando projetos da aba Mapeamento_Times...</div>
+    </div>
+    <div class="card">
+      <h4>Outros projetos (opcional)</h4>
+      <input type="text" id="projetosExtras" placeholder="Ex.: DPROJ1, DPROJ2 (projetos fora do mapeamento)">
+      <div class="meta" style="margin-top:4px">Projetos fora do mapeamento entram como "Outros / Não Mapeado" e usam o webhook padrão.</div>
+    </div>
+    <button type="button" class="btn" id="btnProcessar">Analisar Issues dos Projetos Selecionados</button>
+  </div>
+
+  <!-- ABA 2: DISPAROS -->
+  <div id="tabDisparos" class="tab-content">
+    <div class="card">
+      <h4>Canais</h4>
+      <label class="chk"><input type="checkbox" id="canalChat" checked> 💬 Google Chat</label>
+      <label class="chk"><input type="checkbox" id="canalEmail" checked> ✉️ E-mail</label>
+      <div class="meta" style="margin-top:4px">Destinatários de e-mail: coluna E da aba Mapeamento_Times (vários separados por vírgula).</div>
+    </div>
+
+    <div class="card">
+      <h4>Times que receberão o alerta</h4>
+      <label class="todos"><input type="checkbox" id="chkTodosTimes" checked> Todos os times (inclui não mapeados)</label>
+      <div id="listaTimes" class="meta">Carregando...</div>
+    </div>
+
+    <div class="card">
+      <h4>Envio automático</h4>
+      <div id="infoGatilho" class="meta">Carregando...</div>
+      <div class="linha-btn">
+        <button type="button" class="btn btn-sec" id="btnGatilho">...</button>
+        <button type="button" class="btn btn-sec" id="btnDiagnostico">🔎 Diagnóstico da instalação</button>
+      </div>
+    </div>
+
+    <div class="linha-btn">
+      <button type="button" class="btn btn-sec" id="btnPreview">👁 Pré-visualizar</button>
+      <button type="button" class="btn btn-success" id="btnEnviar">📤 Enviar alertas</button>
+    </div>
+    <div class="linha-btn">
+      <button type="button" class="btn btn-sec" id="btnEmailTeste">🧪 Enviar e-mail de teste só para mim</button>
+    </div>
+
+    <div class="confirm" id="confirmBox">
+      <div id="confirmTxt" style="margin-bottom:8px"></div>
+      <div class="linha-btn">
+        <button type="button" class="btn btn-sec" id="btnCancelarEnvio">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmarEnvio">Confirmar envio</button>
+      </div>
+    </div>
+
+    <div id="previewArea"></div>
+    <div class="meta" id="rodapeVersao" style="margin-top:8px;text-align:right"></div>
+  </div>
+
+  <!-- ABA 3: REGRAS -->
+  <div id="tabRegras" class="tab-content">
+    <p class="meta" style="margin-top:0">Prazos em dias corridos, conforme as metas semestrais. DLT aceita "N/A" (sem limite). As novas regras valem a partir da próxima análise.</p>
+    <table class="table-regras">
+      <thead><tr><th>Prioridade</th><th>Limite CLT (Dias)</th><th>Limite DLT (Dias)</th></tr></thead>
+      <tbody>
+        <tr><td><b>Crítica</b></td><td><input type="number" id="clt_Critical" min="1" max="999"></td><td><input type="text" id="dlt_Critical"></td></tr>
+        <tr><td><b>Alta</b></td><td><input type="number" id="clt_High" min="1" max="999"></td><td><input type="text" id="dlt_High"></td></tr>
+        <tr><td><b>Média</b></td><td><input type="number" id="clt_Medium" min="1" max="999"></td><td><input type="text" id="dlt_Medium"></td></tr>
+        <tr><td><b>Baixa</b></td><td><input type="number" id="clt_Low" min="1" max="999"></td><td><input type="text" id="dlt_Low"></td></tr>
+      </tbody>
+    </table>
+    <button type="button" class="btn btn-success" id="btnSalvarRegras">Salvar Novas Regras</button>
+  </div>
+
+  <!-- ABA 4: LOOKER -->
+  <div id="tabLooker" class="tab-content">
+    <div class="card" style="text-align:center">
+      <h4 style="color:#1A73E8">Painel Executivo de Indicadores</h4>
+      <p class="meta" id="lookerInfo">Abra o Dashboard no Google Looker Studio em uma nova guia.</p>
+      <button type="button" class="btn" id="btnLooker" style="background:#1A73E8;border-color:#1A73E8">🚀 Abrir Relatório no Looker Studio</button>
+    </div>
+  </div>
+
+  <!-- ABA 5: MANUAL -->
+  <div id="tabManual" class="tab-content">
+    <div class="card" style="text-align:center">
+      <h4>Manual Oficial em PDF (Google Drive)</h4>
+      <p class="meta">Abra a documentação completa em uma nova guia.</p>
+      <button type="button" class="btn btn-dark" id="btnManual">📖 Abrir Manual do Usuário (PDF)</button>
+    </div>
+  </div>
+
+  <script>
+    var URL_MANUAL = <?!= JSON.stringify(urlManual || '') ?>;
+    var URL_LOOKER = <?!= JSON.stringify(urlLooker || '') ?>;
+    var PRIOS = ['Critical', 'High', 'Medium', 'Low'];
+    var dadosPainel = null;
+
+    /* ---------- utilidades ---------- */
+    function $(id) { return document.getElementById(id); }
+
+    function status(msg, tipo) {
+      var el = $('status');
+      if (!msg) { el.style.display = 'none'; return; }
+      var cores = { info: ['#fff3cd', '#856404'], ok: ['#d4edda', '#155724'], erro: ['#f8d7da', '#721c24'] };
+      var c = cores[tipo || 'info'];
+      el.style.backgroundColor = c[0];
+      el.style.color = c[1];
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function esc(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    /** Converte a formatação do Google Chat em HTML para a pré-visualização. */
+    function renderChat(texto) {
+      var s = esc(texto);
+      s = s.replace(/&lt;(https?:\/\/[^|\s]+)\|([^\n]+?)&gt;/g, '<a href="$1" target="_blank">$2</a>');
+      s = s.replace(/\*([^*\n]+)\*/g, '<b>$1</b>');
+      s = s.replace(/(^|[\s(])_([^_\n]+)_/g, '$1<i>$2</i>');
+      return s.replace(/\n/g, '<br>');
+    }
+
+    function falha(prefixo, btns) {
+      return function (err) {
+        status(prefixo + (err && err.message ? err.message : err), 'erro');
+        (btns || []).forEach(function (b) { $(b).disabled = false; });
+      };
+    }
+
+    /* ---------- abas ---------- */
+    document.querySelectorAll('.tab-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-content').forEach(function (c) { c.classList.remove('active'); });
+        btn.classList.add('active');
+        $(btn.getAttribute('data-tab')).classList.add('active');
+        status('');
+      });
+    });
+
+    /* ---------- carga inicial ---------- */
+    function carregarDados(manterSelecao) {
+      var selecionados = manterSelecao ? projetosSelecionados() : null;
+      google.script.run
+        .withSuccessHandler(function (d) {
+          dadosPainel = d;
+          renderProjetos(d.projetos, selecionados);
+          renderTimes(d.times, d.temWebhookPadrao);
+          renderGatilho(d.gatilhoAtivo, d.horaEnvio);
+          preencherRegras(d.regras);
+          $('rodapeVersao').textContent = 'Módulo de disparos v' + (d.versao || '?') + ' · você: ' + (d.usuarioEmail || 'não identificado');
+          $('btnEmailTeste').textContent = '🧪 Enviar e-mail de teste só para mim' + (d.usuarioEmail ? ' (' + d.usuarioEmail + ')' : '');
+          if (d.avisosMapeamento && d.avisosMapeamento.length) {
+            status('⚠️ Problemas na aba Mapeamento_Times (corrija a planilha):\n' +
+              d.avisosMapeamento.join('\n'), 'erro');
+          }
+        })
+        .withFailureHandler(falha('Erro ao carregar o painel: '))
+        .obterDadosPainel();
+    }
+
+    function renderProjetos(projetos, selecionados) {
+      var cont = $('listaProjetos');
+      cont.innerHTML = '';
+      cont.className = '';
+      if (!projetos.length) {
+        cont.className = 'meta';
+        cont.textContent = 'Nenhum projeto na aba Mapeamento_Times. Use o campo "Outros projetos".';
+        return;
+      }
+      var porTime = {};
+      projetos.forEach(function (p) { (porTime[p.time] = porTime[p.time] || []).push(p); });
+
+      Object.keys(porTime).sort().forEach(function (time) {
+        var g = document.createElement('div');
+        g.className = 'grupo-time';
+        var n = document.createElement('div');
+        n.className = 'nome';
+        n.textContent = time;
+        g.appendChild(n);
+
+        porTime[time].forEach(function (p) {
+          var lb = document.createElement('label');
+          lb.className = 'chk';
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'chk-projeto';
+          cb.value = p.sigla;
+          cb.checked = selecionados ? selecionados.indexOf(p.sigla) >= 0 : true;
+          cb.addEventListener('change', sincronizarTodosProjetos);
+          lb.appendChild(cb);
+          lb.appendChild(document.createTextNode(p.sigla));
+          var m = document.createElement('span');
+          m.className = 'meta';
+          m.textContent = '(' + p.ultimaExtracao + ')';
+          lb.appendChild(m);
+          g.appendChild(lb);
+        });
+        cont.appendChild(g);
+      });
+      sincronizarTodosProjetos();
+    }
+
+    function sincronizarTodosProjetos() {
+      var cbs = document.querySelectorAll('.chk-projeto');
+      var marcados = document.querySelectorAll('.chk-projeto:checked');
+      $('chkTodosProjetos').checked = cbs.length > 0 && cbs.length === marcados.length;
+    }
+
+    $('chkTodosProjetos').addEventListener('change', function () {
+      var v = this.checked;
+      document.querySelectorAll('.chk-projeto').forEach(function (cb) { cb.checked = v; });
+    });
+
+    function projetosSelecionados() {
+      var lista = [];
+      document.querySelectorAll('.chk-projeto:checked').forEach(function (cb) { lista.push(cb.value); });
+      return lista;
+    }
+
+    function renderTimes(times, temWebhookPadrao) {
+      var cont = $('listaTimes');
+      cont.innerHTML = '';
+      cont.className = '';
+      times.forEach(function (t) {
+        var lb = document.createElement('label');
+        lb.className = 'chk';
+        lb.style.display = 'flex';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'chk-time';
+        cb.value = t.nome;
+        cb.checked = true;
+        cb.addEventListener('change', sincronizarTodosTimes);
+        lb.appendChild(cb);
+        lb.appendChild(document.createTextNode(t.nome));
+        var b = document.createElement('span');
+        if (t.webhookProprio) { b.className = 'badge badge-ok'; b.textContent = 'webhook do time'; }
+        else if (temWebhookPadrao) { b.className = 'badge badge-warn'; b.textContent = 'webhook padrão'; }
+        else { b.className = 'badge badge-err'; b.textContent = 'sem webhook'; }
+        lb.appendChild(b);
+        var be = document.createElement('span');
+        var qtd = (t.emails || []).length;
+        be.className = 'badge ' + (qtd ? 'badge-ok' : 'badge-err');
+        be.textContent = qtd ? qtd + ' e-mail(s)' : 'sem e-mail';
+        be.title = (t.emails || []).join(', ');
+        lb.appendChild(be);
+        cont.appendChild(lb);
+      });
+      sincronizarTodosTimes();
+    }
+
+    function sincronizarTodosTimes() {
+      var cbs = document.querySelectorAll('.chk-time');
+      var marcados = document.querySelectorAll('.chk-time:checked');
+      $('chkTodosTimes').checked = cbs.length === marcados.length;
+    }
+
+    $('chkTodosTimes').addEventListener('change', function () {
+      var v = this.checked;
+      document.querySelectorAll('.chk-time').forEach(function (cb) { cb.checked = v; });
+    });
+
+    /** Lista vazia = todos (inclui "Outros / Não Mapeado"). */
+    function timesSelecionados() {
+      if ($('chkTodosTimes').checked) return [];
+      var lista = [];
+      document.querySelectorAll('.chk-time:checked').forEach(function (cb) { lista.push(cb.value); });
+      return lista;
+    }
+
+    function renderGatilho(ativo, hora) {
+      $('infoGatilho').innerHTML = ativo
+        ? '<span class="badge badge-ok">ATIVO</span> Extração + envio diário por volta das ' + hora + 'h (dias úteis).'
+        : '<span class="badge badge-err">INATIVO</span> Nenhum envio automático configurado por você.';
+      var btn = $('btnGatilho');
+      btn.textContent = ativo ? '⏸ Desativar envio diário' : '▶ Ativar envio diário';
+      btn.setAttribute('data-ativo', ativo ? '1' : '0');
+      btn.disabled = false;
+    }
+
+    /* ---------- análise ---------- */
+    $('btnProcessar').addEventListener('click', function () {
+      var lista = projetosSelecionados();
+      var extras = $('projetosExtras').value.trim();
+      if (extras) lista = lista.concat(extras.split(/[,;\s]+/).filter(Boolean));
+      if (!lista.length) { status('Selecione ao menos um projeto.', 'erro'); return; }
+
+      var btn = this;
+      btn.disabled = true;
+      status('Buscando backlog aberto e realizando análise de SLA para: ' + lista.join(', ') + '...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          status(res.mensagem, 'ok');
+          btn.disabled = false;
+          carregarDados(true);
+        })
+        .withFailureHandler(falha('Erro: ', ['btnProcessar']))
+        .processarRelatorioCLTDLT({ projeto: lista.join(', ') });
+    });
+
+    /* ---------- disparos ---------- */
+    function descreverSelecaoTimes() {
+      var t = timesSelecionados();
+      return t.length ? t.join(', ') : 'todos os times';
+    }
+
+    function canaisSelecionados() {
+      return { chat: $('canalChat').checked, email: $('canalEmail').checked };
+    }
+
+    function descreverCanais(c) {
+      var l = [];
+      if (c.chat) l.push('Chat');
+      if (c.email) l.push('E-mail');
+      return l.join(' + ');
+    }
+
+    function validarSelecao() {
+      var c = canaisSelecionados();
+      if (!c.chat && !c.email) { status('Selecione ao menos um canal (Chat ou E-mail).', 'erro'); return false; }
+      if (!$('chkTodosTimes').checked && !timesSelecionados().length) { status('Selecione ao menos um time.', 'erro'); return false; }
+      return true;
+    }
+
+    function travarDisparos(v) {
+      ['btnPreview', 'btnEnviar', 'btnEmailTeste'].forEach(function (id) { $(id).disabled = v; });
+    }
+
+    function renderPreviews(previews) {
+      var html = '';
+      var emails = [];
+      previews.forEach(function (p) {
+        html += '<div class="preview-time"><div class="preview-head"><span>' + esc(p.time) + '</span></div>';
+        if (p.chat) {
+          html += '<div class="preview-sub">💬 Chat → ' + esc(p.chat.destino) + ' · ' + p.chat.mensagens.length + ' msg</div>';
+          p.chat.mensagens.forEach(function (m) {
+            html += '<div class="preview-msg">' + renderChat(m) +
+              '<div class="meta" style="text-align:right">' + m.length + ' caracteres</div></div>';
+          });
+        }
+        if (p.email) {
+          html += '<div class="preview-sub">✉️ E-mail → ' + esc(p.email.destino) + '<br>Assunto: ' + esc(p.email.assunto) + '</div>';
+          html += '<div class="preview-email"><iframe sandbox="allow-popups allow-popups-to-escape-sandbox" data-idx="' + emails.length + '"></iframe></div>';
+          emails.push(p.email.html);
+        }
+        html += '</div>';
+      });
+      $('previewArea').innerHTML = html;
+      document.querySelectorAll('.preview-email iframe').forEach(function (f) {
+        f.srcdoc = '<base target="_blank">' + emails[Number(f.getAttribute('data-idx'))];
+      });
+    }
+
+    $('btnPreview').addEventListener('click', function () {
+      if (!validarSelecao()) return;
+      var canais = canaisSelecionados();
+      travarDisparos(true);
+      $('confirmBox').style.display = 'none';
+      $('previewArea').innerHTML = '';
+      status('Montando pré-visualização (' + descreverCanais(canais) + ' · ' + descreverSelecaoTimes() + ')...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function (r) {
+          travarDisparos(false);
+          status(r.mensagem, r.previews.length ? 'ok' : 'info');
+          renderPreviews(r.previews);
+        })
+        .withFailureHandler(function (err) { travarDisparos(false); status('Erro na pré-visualização: ' + err.message, 'erro'); })
+        .previsualizarAlertasPainel(timesSelecionados(), canais);
+    });
+
+    $('btnEnviar').addEventListener('click', function () {
+      if (!validarSelecao()) return;
+      $('confirmTxt').innerHTML = '<b>Confirma o envio agora?</b><br>Canais: ' + esc(descreverCanais(canaisSelecionados())) +
+        '<br>Times: ' + esc(descreverSelecaoTimes()) +
+        '<br><span class="meta">Vai para os canais e destinatários REAIS. Use "Pré-visualizar" antes, se ainda não usou.</span>';
+      $('confirmBox').style.display = 'block';
+    });
+
+    $('btnCancelarEnvio').addEventListener('click', function () {
+      $('confirmBox').style.display = 'none';
+    });
+
+    $('btnConfirmarEnvio').addEventListener('click', function () {
+      var canais = canaisSelecionados();
+      $('confirmBox').style.display = 'none';
+      travarDisparos(true);
+      status('Enviando (' + descreverCanais(canais) + ' · ' + descreverSelecaoTimes() + ')... pode levar alguns segundos por time.', 'info');
+
+      google.script.run
+        .withSuccessHandler(function (msg) {
+          travarDisparos(false);
+          status(msg, msg.indexOf('FALHAS') >= 0 ? 'erro' : 'ok');
+        })
+        .withFailureHandler(function (err) { travarDisparos(false); status('Erro no envio: ' + err.message, 'erro'); })
+        .enviarAlertasPainel(timesSelecionados(), canais);
+    });
+
+    $('btnEmailTeste').addEventListener('click', function () {
+      if (!$('chkTodosTimes').checked && !timesSelecionados().length) { status('Selecione ao menos um time.', 'erro'); return; }
+      travarDisparos(true);
+      status('Enviando e-mail de teste para você (' + descreverSelecaoTimes() + ')...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function (msg) {
+          travarDisparos(false);
+          status('🧪 TESTE - ' + msg + '\n\nConfira sua caixa de entrada (assunto começa com [TESTE]).', msg.indexOf('FALHAS') >= 0 ? 'erro' : 'ok');
+        })
+        .withFailureHandler(function (err) { travarDisparos(false); status('Erro no e-mail de teste: ' + err.message, 'erro'); })
+        .enviarEmailTestePainel(timesSelecionados());
+    });
+
+    $('btnDiagnostico').addEventListener('click', function () {
+      var btn = this;
+      btn.disabled = true;
+      status('Verificando instalação...', 'info');
+      google.script.run
+        .withSuccessHandler(function (txt) {
+          btn.disabled = false;
+          status(txt, txt.indexOf('❌') >= 0 ? 'erro' : 'ok');
+        })
+        .withFailureHandler(falha('Erro no diagnóstico: ', ['btnDiagnostico']))
+        .diagnosticarInstalacao();
+    });
+
+    $('btnGatilho').addEventListener('click', function () {
+      var btn = this;
+      var ativo = btn.getAttribute('data-ativo') === '1';
+      btn.disabled = true;
+      status(ativo ? 'Desativando envio diário...' : 'Ativando envio diário...', 'info');
+      var runner = google.script.run
+        .withSuccessHandler(function (msg) { status(msg, 'ok'); carregarDados(true); })
+        .withFailureHandler(falha('Erro ao configurar o gatilho: ', ['btnGatilho']));
+      if (ativo) runner.desativarEnvioDiario(); else runner.ativarEnvioDiario();
+    });
+
+    /* ---------- regras ---------- */
+    function preencherRegras(regras) {
+      if (!regras) return;
+      PRIOS.forEach(function (p) {
+        if (regras.CLT && regras.CLT[p] !== undefined) $('clt_' + p).value = regras.CLT[p];
+        if (regras.DLT) {
+          var v = regras.DLT[p];
+          $('dlt_' + p).value = (v === undefined || v === null || v === 'N/A' || v === 'INFINITY') ? 'N/A' : v;
+        }
+      });
+    }
+
+    function lerRegras() {
+      var erros = [];
+      var regras = { CLT: {}, DLT: {} };
+      PRIOS.forEach(function (p) {
+        var cltEl = $('clt_' + p), dltEl = $('dlt_' + p);
+        cltEl.classList.remove('invalido');
+        dltEl.classList.remove('invalido');
+
+        var clt = cltEl.value.trim();
+        if (!/^\d+$/.test(clt) || Number(clt) < 1 || Number(clt) > 999) {
+          cltEl.classList.add('invalido');
+          erros.push('CLT ' + p);
+        } else {
+          regras.CLT[p] = Number(clt);
+        }
+
+        var dlt = dltEl.value.trim().toUpperCase();
+        if (dlt === '' || dlt === 'N/A') {
+          regras.DLT[p] = 'N/A';
+        } else if (!/^\d+$/.test(dlt) || Number(dlt) < 1 || Number(dlt) > 999) {
+          dltEl.classList.add('invalido');
+          erros.push('DLT ' + p);
+        } else {
+          regras.DLT[p] = Number(dlt);
+        }
+      });
+      if (erros.length) throw new Error('Valores inválidos em: ' + erros.join(', ') + '. Use inteiros de 1 a 999 (DLT aceita N/A).');
+      return regras;
+    }
+
+    $('btnSalvarRegras').addEventListener('click', function () {
+      var regras;
+      try { regras = lerRegras(); } catch (e) { status(e.message, 'erro'); return; }
+
+      var btn = this;
+      btn.disabled = true;
+      status('Salvando novas metas na planilha...', 'info');
+      google.script.run
+        .withSuccessHandler(function (msg) { status(msg, 'ok'); btn.disabled = false; })
+        .withFailureHandler(falha('Erro ao salvar: ', ['btnSalvarRegras']))
+        .salvarRegrasSLA(regras);
+    });
+
+    /* ---------- links ---------- */
+    if (!URL_LOOKER) {
+      $('btnLooker').disabled = true;
+      $('lookerInfo').textContent = 'Link do Looker ainda não configurado (CONFIG.LOOKER_URL no Código.gs).';
+    }
+    $('btnLooker').addEventListener('click', function () { if (URL_LOOKER) window.open(URL_LOOKER, '_blank'); });
+    $('btnManual').addEventListener('click', function () { window.open(URL_MANUAL, '_blank'); });
+
+    carregarDados(false);
+  </script>
+</body>
+</html>

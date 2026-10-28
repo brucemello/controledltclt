@@ -1,0 +1,4 @@
+# Credenciais e configuração local do clasp (gerados no CI a partir dos secrets)
+.clasp.json
+.clasprc.json
+node_modules/

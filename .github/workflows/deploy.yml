@@ -1,0 +1,90 @@
+name: Deploy Apps Script (clasp)
+
+# Publica os fontes de src/ no projeto Apps Script a cada push na main.
+# Secrets usados: CLASPRC_JSON (conteúdo do ~/.clasprc.json), SCRIPT_ID, DEPLOYMENT_ID (opcional).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: clasp-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configurar credenciais do clasp
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ]; then
+            echo "::error::Secrets CLASPRC_JSON e SCRIPT_ID são obrigatórios."; exit 1
+          fi
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          node -e "JSON.parse(require('fs').readFileSync(process.env.HOME + '/.clasprc.json','utf8'))" \
+            || { echo "::error::CLASPRC_JSON não é um JSON válido."; exit 1; }
+
+          # O formato do .clasprc.json depende da versão do clasp usada no login.
+          if grep -q '"tokens"' "$HOME/.clasprc.json"; then
+            echo "CLASP_PKG=@google/clasp@3" >> "$GITHUB_ENV"
+          else
+            echo "CLASP_PKG=@google/clasp@2.4.2" >> "$GITHUB_ENV"
+          fi
+          printf '{"scriptId":"%s","rootDir":"src"}\n' "$SCRIPT_ID" > .clasp.json
+
+      - name: Instalar clasp
+        run: npm install -g "$CLASP_PKG" && clasp --version
+
+      - name: Garantir manifesto (appsscript.json)
+        run: |
+          set -euo pipefail
+          # Se o repositório ainda não tem o manifesto, usa o que já está no projeto remoto,
+          # preservando fuso, escopos e serviços avançados configurados lá.
+          if [ ! -f src/appsscript.json ]; then
+            mkdir -p /tmp/remoto
+            printf '{"scriptId":"%s"}\n' "$(node -p "require('./.clasp.json').scriptId")" > /tmp/remoto/.clasp.json
+            (cd /tmp/remoto && clasp pull)
+            cp /tmp/remoto/appsscript.json src/appsscript.json
+            echo "Manifesto copiado do projeto remoto:"
+            cat src/appsscript.json
+          fi
+
+      - name: Validar sintaxe dos .gs
+        run: |
+          set -euo pipefail
+          for f in src/*.gs; do
+            node -e "new Function(require('fs').readFileSync('$f','utf8'))" || { echo "::error file=$f::Erro de sintaxe"; exit 1; }
+          done
+
+      - name: Publicar (clasp push)
+        run: clasp push -f
+
+      - name: Atualizar implantação
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOYMENT_ID:-}" ]; then
+            echo "DEPLOYMENT_ID não configurado - apenas o código foi publicado (suficiente para script vinculado à planilha)."
+            exit 0
+          fi
+          clasp deploy -i "$DEPLOYMENT_ID" -d "GitHub ${GITHUB_SHA::7} - $(date -u +%Y-%m-%dT%H:%MZ)"
+
+      - name: Limpar credenciais
+        if: always()
+        run: rm -rf "$HOME/.clasprc.json" .clasp.json /tmp/remoto
