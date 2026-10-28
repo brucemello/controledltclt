@@ -1,9 +1,9 @@
 /**
- * MÓDULO DE DISPAROS v2.2 - Alertas de SLA (CLT/DLT) no Google Chat e por E-mail
+ * MÓDULO DE DISPAROS v2.3 - Alertas de SLA (CLT/DLT) no Google Chat e por E-mail
  * Depende de Código.gs: CONFIG, lerMapeamento_, calcularAlerta_, registrarLog_
  */
 
-const VERSAO_DISPAROS = '2.2';
+const VERSAO_DISPAROS = '2.3';
 
 const CHAT_CFG = {
   LIMITE_CHARS: 3800,            // margem abaixo do limite de texto do Google Chat
@@ -160,9 +160,8 @@ function dispararAlertasSLA_(opcoes) {
     return res;
   }
 
-  const dados = aba.getRange(2, 1, aba.getLastRow() - 1, 24).getValues();
-  const hoje0 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-  const grupos = agruparPorTime_(dados, hoje0);
+  const dados = aba.getRange(2, 1, aba.getLastRow() - 1, CONFIG.TOTAL_COLUNAS).getValues();
+  const grupos = agruparPorTime_(dados, agora);
 
   let times = Object.keys(grupos).sort();
   if (opcoes.times && opcoes.times.length) {
@@ -306,7 +305,7 @@ function montarResumo_(res, dryRun) {
 
 /* ===================== DADOS ===================== */
 
-function agruparPorTime_(dados, hoje0) {
+function agruparPorTime_(dados, agora) {
   const grupos = {};
   dados.forEach(linha => {
     const status = String(linha[2]).trim().toUpperCase();
@@ -314,24 +313,30 @@ function agruparPorTime_(dados, hoje0) {
     if (STATUS_ENCERRADOS_.some(s => status.includes(s))) return;
 
     const time = String(linha[23] || 'Outros / Não Mapeado').trim();
-    (grupos[time] = grupos[time] || []).push(avaliarLinha_(linha, hoje0));
+    (grupos[time] = grupos[time] || []).push(avaliarLinha_(linha, agora));
   });
   return grupos;
 }
 
-/** Recalcula os dias NO MOMENTO DO ENVIO (dias corridos de calendário). */
-function avaliarLinha_(linha, hoje0) {
-  const abertura = parseDataPlanilha_(linha[6]);
-  const criacao = parseDataPlanilha_(linha[11]);
+/**
+ * Recalcula os dias NO MOMENTO DO ENVIO: dias completos de 24h desde a data/hora de abertura
+ * (colunas Y/Z). Linhas antigas sem Y/Z usam a data das colunas G/L às 00:00.
+ */
+function avaliarLinha_(linha, agora) {
+  const abertura = dataHoraPlanilha_(linha[24]) || parseDataPlanilha_(linha[6]);
+  const criacao = dataHoraPlanilha_(linha[25]) || parseDataPlanilha_(linha[11]);
 
   const limCLT = Number(linha[8]);
   const limDLTnum = Number(linha[13]);
   const temDLT = String(linha[13]).toUpperCase() !== 'N/A' && linha[13] !== '' && !isNaN(limDLTnum);
 
-  const diasCLT = abertura ? diasEntre_(abertura, hoje0) : Number(linha[7]);
-  const diasDLT = criacao ? diasEntre_(criacao, hoje0) : Number(linha[12]);
+  // CLT só existe com data de abertura do ticket; DLT sempre parte da criação da issue.
+  const diasCLTPlanilha = Number(linha[7]);
+  const diasCLT = abertura ? diasEntre_(abertura, agora) : (isNaN(diasCLTPlanilha) ? null : diasCLTPlanilha);
+  const temCLT = diasCLT !== null && !isNaN(limCLT);
+  const diasDLT = criacao ? diasEntre_(criacao, agora) : Number(linha[12]);
 
-  const restCLT = limCLT - diasCLT;
+  const restCLT = temCLT ? limCLT - diasCLT : Infinity;
   const restDLT = temDLT ? limDLTnum - diasDLT : Infinity;
   const pior = Math.min(restCLT, restDLT);
   const alerta = calcularAlerta_(pior);
@@ -342,7 +347,9 @@ function avaliarLinha_(linha, hoje0) {
     status: String(linha[2] || ''),
     prioridade: String(linha[3] || ''),
     responsavel: String(linha[4] || 'Sem responsável'),
-    clt: { dias: diasCLT, limite: limCLT, rest: restCLT, venc: abertura ? somarDias_(abertura, limCLT) : null },
+    clt: temCLT
+      ? { dias: diasCLT, limite: limCLT, rest: restCLT, venc: abertura ? somarDias_(abertura, limCLT) : null }
+      : { semData: true, dias: null, limite: null, rest: Infinity, venc: null },
     dlt: { dias: diasDLT, limite: temDLT ? limDLTnum : null, rest: restDLT, venc: (criacao && temDLT) ? somarDias_(criacao, limDLTnum) : null },
     pior: pior,
     faixa: alerta === 'ESTOURADO' ? 'ESTOURADO' : (alerta === 'PRÓXIMO DE VENCER' ? 'PROXIMO' : 'DENTRO')
@@ -456,6 +463,7 @@ function formatarItem_(it, tz) {
 }
 
 function descreverPrazo_(rotulo, p, tz) {
+  if (p.semData) return rotulo + ' n/a (sem data do ticket)';
   if (p.limite === null) return rotulo + ' ' + p.dias + 'd (sem limite)';
   const venc = p.venc ? Utilities.formatDate(p.venc, tz, 'dd/MM') : '?';
   const base = rotulo + ' ' + p.dias + '/' + p.limite + 'd';
@@ -522,11 +530,11 @@ function montarEmailTime_(time, itens, contexto, tz, teste) {
 
   html += '<p style="color:#6b778c;font-size:11px;margin-top:20px">' +
     (CONFIG.LOOKER_URL ? '<a href="' + e(CONFIG.LOOKER_URL) + '" style="color:#0052CC">📈 Abrir dashboard no Looker</a> · ' : '') +
-    'Mensagem automática do controle de SLA CLT/DLT. Prazos em dias corridos, recalculados no momento do envio.</p></div>';
+    'Mensagem automática do controle de SLA CLT/DLT. Prazos em dias completos desde a abertura, recalculados no momento do envio.</p></div>';
 
   const txt = [assunto, contexto.linhaBase, ''];
   est.concat(prox).forEach(i => {
-    txt.push('- ' + i.key + ' | ' + i.prioridade + ' | CLT ' + i.clt.dias + '/' + i.clt.limite + 'd | DLT ' +
+    txt.push('- ' + i.key + ' | ' + i.prioridade + ' | CLT ' + (i.clt.semData ? 'n/a' : i.clt.dias + '/' + i.clt.limite + 'd') + ' | DLT ' +
       i.dlt.dias + '/' + (i.dlt.limite === null ? '∞' : i.dlt.limite + 'd') + ' | ' + CONFIG.JIRA_BASE_URL + '/browse/' + i.key);
   });
   txt.push('', 'No prazo: ' + dentro.length + ' chamado(s).');
@@ -571,6 +579,7 @@ function tabelaEmail_(titulo, cor, itens, tz) {
 }
 
 function celulaPrazoEmail_(p, tz) {
+  if (p.semData) return '<span style="color:#6b778c">n/a</span><br><span style="color:#6b778c;font-size:11px">sem data do ticket</span>';
   if (p.limite === null) return p.dias + 'd<br><span style="color:#6b778c;font-size:11px">sem limite</span>';
   const venc = p.venc ? Utilities.formatDate(p.venc, tz, 'dd/MM') : '?';
   const base = p.dias + '/' + p.limite + 'd';
@@ -624,6 +633,10 @@ function ehFimDeSemana_() {
   return dia >= 6;
 }
 
+function dataHoraPlanilha_(v) {
+  return (v instanceof Date && !isNaN(v.getTime())) ? v : null;
+}
+
 function parseDataPlanilha_(v) {
   if (v instanceof Date && !isNaN(v.getTime())) return new Date(v.getFullYear(), v.getMonth(), v.getDate());
   const p = String(v || '').substring(0, 10).split('-');
@@ -631,8 +644,9 @@ function parseDataPlanilha_(v) {
   return null;
 }
 
+/** Dias completos de 24h entre duas datas/horas (mesma regra da extração). */
 function diasEntre_(inicio, fim) {
-  return Math.round((fim - inicio) / 86400000);
+  return Math.floor((fim.getTime() - inicio.getTime()) / 86400000);
 }
 
 function somarDias_(data, dias) {

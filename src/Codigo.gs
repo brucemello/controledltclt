@@ -21,6 +21,7 @@ const CONFIG = {
   ABA_LOG: 'Logs',
 
   MAX_RESULTS: 50,
+  TOTAL_COLUNAS: 26, // A..X + Y/Z (data e hora de abertura do ticket e de criação da issue)
   HORA_ENVIO_DIARIO: 8, // hora (fuso do projeto) do envio automático
 
   CUSTOM_FIELDS: {
@@ -316,7 +317,7 @@ function processarRelatorioCLTDLT(parametros) {
 
   let dadosExistentes = [];
   if (aba.getLastRow() > 1) {
-    dadosExistentes = aba.getRange(2, 1, aba.getLastRow() - 1, 24).getValues();
+    dadosExistentes = aba.getRange(2, 1, aba.getLastRow() - 1, CONFIG.TOTAL_COLUNAS).getValues();
   }
 
   const dadosPreservados = dadosExistentes.filter(linha => {
@@ -347,26 +348,31 @@ function processarRelatorioCLTDLT(parametros) {
     const nomePrioridade = (prioridadeInternaObj && prioridadeInternaObj.value) ? prioridadeInternaObj.value : (prioridadePadraoObj.name || 'Baixa');
     const prioridade = normalizarPrioridade_(nomePrioridade);
 
-    const dataAberturaTicketStr = fields[CONFIG.CUSTOM_FIELDS.DATA_ABERTURA_TICKET] || fields.created;
-    const dataCriacaoIssueStr = fields.created;
+    // CLT conta da ABERTURA DO TICKET (campo customizado). Sem essa data, CLT = N/A
+    //     (não usa a criação da issue como substituta, o que transformaria CLT em DLT).
+    // DLT conta da CRIAÇÃO DA ISSUE no Jira (campo created).
+    // Regra: dias completos de 24h desde a data/hora de abertura (mesma do painel da sprint).
+    const aberturaTicket = parseJiraDataHora_(fields[CONFIG.CUSTOM_FIELDS.DATA_ABERTURA_TICKET]);
+    const criacaoIssue = parseJiraDataHora_(fields.created);
+    const resolucao = parseJiraDataHora_(fields.resolutiondate);
+    const dataFinal = resolucao || hoje;
+    const temCLT = !!aberturaTicket;
 
-    const dataAberturaTicket = new Date(dataAberturaTicketStr);
-    const dataCriacaoIssue = new Date(dataCriacaoIssueStr);
+    const dataAberturaTicketDia = dataLocal_(aberturaTicket);
+    const dataCriacaoIssueDia = dataLocal_(criacaoIssue);
+    const dataResolucaoDia = dataLocal_(resolucao);
 
-    const dataResolucaoStr = fields.resolutiondate;
-    const dataFinal = dataResolucaoStr ? new Date(dataResolucaoStr) : hoje;
-
-    const diasDecorridosCLT = Math.floor((dataFinal - dataAberturaTicket) / (1000 * 60 * 60 * 24));
-    const diasDecorridosDLT = Math.floor((dataFinal - dataCriacaoIssue) / (1000 * 60 * 60 * 24));
+    const diasDecorridosCLT = temCLT ? diasCompletos_(aberturaTicket, dataFinal) : 'N/A';
+    const diasDecorridosDLT = diasCompletos_(criacaoIssue, dataFinal);
 
     const limiteCLT = regrasVigentes.CLT[prioridade] !== undefined ? regrasVigentes.CLT[prioridade] : 70;
     const limiteDLT = regrasVigentes.DLT[prioridade] !== undefined ? regrasVigentes.DLT[prioridade] : Infinity;
     const semLimiteDLT = (limiteDLT === Infinity || limiteDLT === 'N/A');
 
-    const diasRestantesCLT = limiteCLT - diasDecorridosCLT;
+    const diasRestantesCLT = temCLT ? limiteCLT - diasDecorridosCLT : 'N/A';
     const diasRestantesDLT = semLimiteDLT ? 999 : limiteDLT - diasDecorridosDLT;
 
-    const alertaCLT = calcularAlerta_(diasRestantesCLT);
+    const alertaCLT = temCLT ? calcularAlerta_(diasRestantesCLT) : 'N/A (SEM DATA DO TICKET)';
     const alertaDLT = semLimiteDLT ? 'DENTRO DO PRAZO' : calcularAlerta_(diasRestantesDLT);
 
     let statusGeral = 'DENTRO DO PRAZO';
@@ -380,8 +386,10 @@ function processarRelatorioCLTDLT(parametros) {
       totalDentro++;
     }
 
-    const ano = dataAberturaTicket.getFullYear();
-    const anoMes = ano + '-' + String(dataAberturaTicket.getMonth() + 1).padStart(2, '0');
+    // Ano/Mês de referência: abertura do ticket; sem ela, criação da issue.
+    const dataReferencia = dataAberturaTicketDia || dataCriacaoIssueDia;
+    const ano = Number(dataReferencia.substring(0, 4));
+    const anoMes = dataReferencia.substring(0, 7);
 
     novasLinhas.push([
       key,
@@ -390,24 +398,26 @@ function processarRelatorioCLTDLT(parametros) {
       prioridade,
       (fields.assignee && fields.assignee.displayName) || 'Sem responsável',
       statusGeral,
-      extrairData_(dataAberturaTicketStr),
+      temCLT ? dataAberturaTicketDia : 'N/A',
       diasDecorridosCLT,
       limiteCLT,
       diasRestantesCLT,
       alertaCLT,
-      extrairData_(dataCriacaoIssueStr),
+      dataCriacaoIssueDia,
       diasDecorridosDLT,
       semLimiteDLT ? 'N/A' : limiteDLT,
       semLimiteDLT ? 'N/A' : diasRestantesDLT,
       alertaDLT,
-      dataResolucaoStr ? extrairData_(dataResolucaoStr) : 'Em Aberto',
+      dataResolucaoDia || 'Em Aberto',
       ano,
       anoMes,
-      alertaCLT !== 'ESTOURADO' ? 1 : 0,
-      alertaCLT === 'ESTOURADO' ? 1 : 0,
+      temCLT && alertaCLT !== 'ESTOURADO' ? 1 : 0,
+      temCLT && alertaCLT === 'ESTOURADO' ? 1 : 0,
       alertaDLT !== 'ESTOURADO' ? 1 : 0,
       alertaDLT === 'ESTOURADO' ? 1 : 0,
-      nomeTime
+      nomeTime,
+      temCLT ? aberturaTicket : 'N/A',
+      criacaoIssue
     ]);
   });
 
@@ -583,14 +593,16 @@ function inicializarAbaIndicadores_(aba) {
     'Issue Key', 'Resumo', 'Status', 'Prioridade', 'Responsável', 'Status Geral SLA',
     'Abertura Ticket (CLT)', 'Dias CLT', 'Limite CLT', 'Dias Restantes CLT', 'Alerta CLT',
     'Criação Issue (DLT)', 'Dias DLT', 'Limite DLT', 'Dias Restantes DLT', 'Alerta DLT', 'Data Resolução',
-    'Ano', 'Ano_Mes', 'Flag_CLT_Dentro', 'Flag_CLT_Estourado', 'Flag_DLT_Dentro', 'Flag_DLT_Estourado', 'Time_Squad'
+    'Ano', 'Ano_Mes', 'Flag_CLT_Dentro', 'Flag_CLT_Estourado', 'Flag_DLT_Dentro', 'Flag_DLT_Estourado', 'Time_Squad',
+    'Abertura Ticket Data/Hora (CLT)', 'Criação Issue Data/Hora (DLT)'
   ]);
-  aba.getRange('A1:X1').setFontWeight('bold').setBackground('#1C3144').setFontColor('#FFFFFF');
+  aba.getRange(1, 1, 1, CONFIG.TOTAL_COLUNAS).setFontWeight('bold').setBackground('#1C3144').setFontColor('#FFFFFF');
 }
 
 function formatarLinhasResultado_(aba, qtdLinhas) {
-  aba.autoResizeColumns(1, 24);
+  aba.autoResizeColumns(1, CONFIG.TOTAL_COLUNAS);
   aba.getRange(2, 6, qtdLinhas, 19).setHorizontalAlignment('center');
+  aba.getRange(2, 25, qtdLinhas, 2).setNumberFormat('dd/MM/yyyy HH:mm');
 }
 
 function prepararAba_(ss, nome) {
@@ -601,6 +613,36 @@ function registrarLog_(acao, status, detalhe) {
   const aba = prepararAba_(SpreadsheetApp.getActiveSpreadsheet(), CONFIG.ABA_LOG);
   if (aba.getLastRow() === 0) aba.appendRow(['Data/Hora', 'Ação', 'Status', 'Detalhe']);
   aba.appendRow([new Date(), acao, status, detalhe]);
+}
+
+/**
+ * Converte uma data do Jira para o dia civil 'yyyy-MM-dd' no fuso do projeto.
+ * Aceita: Date, '2026-09-08' (campo só data) e '2026-09-08T14:30:00.000-0300' (data e hora).
+ * Campo só data é mantido como está: passar por new Date() o leria como UTC e recuaria um dia.
+ */
+function dataLocal_(valor) {
+  const d = parseJiraDataHora_(valor);
+  return d ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd') : '';
+}
+
+/**
+ * Converte data do Jira em Date. Campo só data ('2026-09-08') vira 00:00 no fuso do projeto
+ * (new Date('2026-09-08') seria meia-noite UTC = dia anterior em São Paulo).
+ */
+function parseJiraDataHora_(valor) {
+  if (!valor) return null;
+  if (valor instanceof Date) return isNaN(valor.getTime()) ? null : valor;
+  const s = String(valor).trim();
+  const soData = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (soData) return new Date(Number(soData[1]), Number(soData[2]) - 1, Number(soData[3]));
+  // Jira usa offset sem dois-pontos (-0300); o padrão ISO pede -03:00.
+  const d = new Date(s.replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** Dias completos de 24h entre duas datas/horas (regra do painel da sprint). */
+function diasCompletos_(inicio, fim) {
+  return Math.floor((fim.getTime() - inicio.getTime()) / 86400000);
 }
 
 function extrairData_(dataHora) {
