@@ -74,6 +74,23 @@ jobs:
       - name: Publicar (clasp push)
         run: clasp push -f
 
+      - name: Conferir o que ficou no Apps Script
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/conferencia && mkdir -p /tmp/conferencia
+          printf '{"scriptId":"%s"}\n' "$(node -p "require('./.clasp.json').scriptId")" > /tmp/conferencia/.clasp.json
+          (cd /tmp/conferencia && clasp pull >/dev/null)
+          for f in /tmp/conferencia/*.js; do [ -e "$f" ] && mv "$f" "${f%.js}.gs"; done
+          echo "Arquivos no projeto remoto:"; ls -1 /tmp/conferencia | grep -v '^\.clasp' | sed 's/^/  - /'
+          falhou=0
+          for f in src/*; do
+            n=$(basename "$f")
+            if [ ! -f "/tmp/conferencia/$n" ]; then echo "::error::$n não está no Apps Script"; falhou=1;
+            elif ! diff -q -B -w "$f" "/tmp/conferencia/$n" >/dev/null; then echo "::error::$n diferente no Apps Script"; falhou=1;
+            else echo "  ✓ $n igual ao repositório"; fi
+          done
+          exit $falhou
+
       - name: Atualizar implantação
         env:
           DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
@@ -87,4 +104,4 @@ jobs:
 
       - name: Limpar credenciais
         if: always()
-        run: rm -rf "$HOME/.clasprc.json" .clasp.json /tmp/remoto
+        run: rm -rf "$HOME/.clasprc.json" .clasp.json /tmp/remoto /tmp/conferencia
