@@ -8,6 +8,7 @@ Apps Script vinculado à planilha de controle de SLA. Extrai o backlog do Jira, 
 |---|---|
 | `src/Codigo.gs` | Menu, extração do Jira, regras de SLA, mapeamento de times, gatilho diário |
 | `src/Disparos.gs` | Templates e envio (Chat e e-mail), pré-visualização, diagnóstico |
+| `src/DashboardApi.gs` + `src/Dashboard.html` | Dashboard (KPIs, chamados, disparos). Nomes diferentes: o Apps Script não aceita .gs e .html com o mesmo nome |
 | `src/Parametros.html` | Painel (Análise, Disparos, Regras, Looker, Manual) |
 | `src/appsscript.json` | Manifesto. Na primeira publicação é copiado do projeto remoto, se não existir aqui |
 

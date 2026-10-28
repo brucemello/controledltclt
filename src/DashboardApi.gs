@@ -1,5 +1,6 @@
 /**
- * DASHBOARD v1.0 - KPIs, chamados e disparos em tela cheia.
+ * DASHBOARD v1.0 (servidor) - KPIs, chamados e disparos em tela cheia.
+ * A interface fica em Dashboard.html (o Apps Script não aceita .gs e .html com o mesmo nome).
  * Abre como janela na planilha (menu "📊 Dashboard") e, se o projeto estiver implantado
  * como App da Web, também pela URL da implantação (doGet).
  * Depende de Código.gs e Disparos.gs.
