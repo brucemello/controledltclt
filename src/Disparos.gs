@@ -332,7 +332,8 @@ function avaliarLinha_(linha, agora) {
 
   // CLT só existe com data de abertura do ticket; DLT sempre parte da criação da issue.
   const diasCLTPlanilha = Number(linha[7]);
-  const diasCLT = abertura ? diasEntre_(abertura, agora) : (isNaN(diasCLTPlanilha) ? null : diasCLTPlanilha);
+  const cltNA = String(linha[6]).trim().toUpperCase() === 'N/A';
+  const diasCLT = cltNA ? null : (abertura ? diasEntre_(abertura, agora) : (isNaN(diasCLTPlanilha) ? null : diasCLTPlanilha));
   const temCLT = diasCLT !== null && !isNaN(limCLT);
   const diasDLT = criacao ? diasEntre_(criacao, agora) : Number(linha[12]);
 

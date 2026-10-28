@@ -39,6 +39,8 @@ function onOpen() {
     .addItem('2. Configurar Webhook Padrão do Chat', 'configurarWebhookChat')
     .addItem('3. Testar Conexão Jira', 'testarConexaoJira')
     .addSeparator()
+    .addItem('📊 Dashboard (KPIs, chamados e disparos)', 'abrirDashboard')
+    .addSeparator()
     .addItem('4. Painel Geral, Disparos & Regras SLA', 'abrirTelaParametros')
     .addItem('5. Pré-visualizar Alertas do Chat (sem enviar)', 'previsualizarAlertasChat')
     .addItem('6. Enviar Alertas Agora (Chat + E-mail)', 'executarEReportarChat')

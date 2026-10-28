@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<base target="_blank">
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --ink: #172b4d; --muted: #6b778c; --line: #dfe1e6; --soft: #f7f8f9;
+    --brand: #0052cc; --brand-soft: #e9f2ff;
+    --red: #c9372c; --red-soft: #ffeceb; --amber: #a54800; --amber-soft: #fff4e5; --green: #216e4e; --green-soft: #dcfff1;
+    --grey-bar: #c1c7d0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.45 'Segoe UI', Roboto, Arial, sans-serif; }
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button { font: inherit; }
+
+  /* ---------- topo ---------- */
+  header { position: sticky; top: 0; z-index: 5; background: var(--ink); color: #fff; padding: 10px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: .2px; }
+  header .base { font-size: 12px; color: #b3bac5; }
+  header .base b { color: #fff; font-weight: 600; }
+  header .spacer { flex: 1; }
+  .hbtn { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.25); border-radius: 4px; padding: 6px 12px; cursor: pointer; }
+  .hbtn:hover { background: rgba(255,255,255,.22); }
+  .hbtn.prim { background: var(--brand); border-color: var(--brand); }
+  .hbtn:disabled { opacity: .5; cursor: wait; }
+
+  nav { background: #fff; border-bottom: 1px solid var(--line); padding: 0 20px; display: flex; gap: 2px; overflow-x: auto; }
+  nav button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 11px 14px; color: var(--muted); font-weight: 600; cursor: pointer; white-space: nowrap; }
+  nav button.on { color: var(--brand); border-bottom-color: var(--brand); }
+  nav .cnt { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; font-size: 11px; background: var(--red-soft); color: var(--red); }
+
+  main { padding: 16px 20px 40px; max-width: 1600px; margin: 0 auto; }
+  .tab { display: none; }
+  .tab.on { display: block; }
+
+  #msg { display: none; margin-bottom: 12px; padding: 9px 12px; border-radius: 4px; white-space: pre-wrap; font-weight: 600; font-size: 12px; }
+  #msg.info { display: block; background: var(--brand-soft); color: var(--brand); }
+  #msg.ok { display: block; background: var(--green-soft); color: var(--green); }
+  #msg.erro { display: block; background: var(--red-soft); color: var(--red); }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; }
+  .card h3 small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+  .muted { color: var(--muted); }
+  .grid { display: grid; gap: 12px; }
+
+  /* ---------- KPIs ---------- */
+  .kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 12px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; border-top: 3px solid var(--line); }
+  .kpi .v { font-size: 26px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .kpi .s { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .kpi.red { border-top-color: var(--red); } .kpi.red .v { color: var(--red); }
+  .kpi.amber { border-top-color: #e2a03f; } .kpi.amber .v { color: var(--amber); }
+  .kpi.green { border-top-color: #4bce97; } .kpi.green .v { color: var(--green); }
+  .kpi.brand { border-top-color: var(--brand); }
+  .kpi.click { cursor: pointer; }
+  .kpi.click:hover { box-shadow: 0 1px 4px rgba(9,30,66,.15); }
+
+  .meter { height: 6px; background: var(--soft); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  .meter i { display: block; height: 100%; border-radius: 3px; }
+
+  .two { grid-template-columns: 1.4fr 1fr; }
+  @media (max-width: 1000px) { .two { grid-template-columns: 1fr; } }
+
+  /* ---------- barras por time ---------- */
+  .barrow { display: grid; grid-template-columns: 170px 1fr 44px; gap: 10px; align-items: center; padding: 6px 0; cursor: pointer; border-radius: 4px; }
+  .barrow:hover { background: var(--soft); }
+  .barrow .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barrow .tt { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .stack { display: flex; height: 18px; border-radius: 3px; overflow: hidden; background: var(--soft); gap: 2px; }
+  .stack span { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; min-width: 0; }
+  .s-red { background: var(--red); } .s-amber { background: #e2a03f; color: #3d2600 !important; } .s-green { background: #4bce97; color: #0b3d27 !important; }
+  .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+  /* ---------- tabelas ---------- */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; color: var(--muted); font-weight: 700; padding: 8px; border-bottom: 2px solid var(--line); background: var(--card); position: sticky; top: 0; white-space: nowrap; }
+  th.sort { cursor: pointer; }
+  th.sort:hover { color: var(--ink); }
+  td { padding: 8px; border-bottom: 1px solid #ebecf0; vertical-align: top; }
+  tr:hover td { background: #fafbfc; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .k { font-weight: 700; white-space: nowrap; }
+  .sub { font-size: 11px; color: var(--muted); }
+  .tablewrap { max-height: calc(100vh - 270px); overflow: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
+
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .p-red { background: var(--red-soft); color: var(--red); }
+  .p-amber { background: var(--amber-soft); color: var(--amber); }
+  .p-green { background: var(--green-soft); color: var(--green); }
+  .p-grey { background: #f1f2f4; color: var(--muted); }
+  .p-brand { background: var(--brand-soft); color: var(--brand); }
+
+  .prazo b { font-variant-numeric: tabular-nums; }
+  .prazo.red b { color: var(--red); } .prazo.amber b { color: var(--amber); }
+
+  /* ---------- filtros ---------- */
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .filters input, .filters select { padding: 7px 9px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--ink); font: inherit; }
+  .filters input[type=search] { min-width: 240px; flex: 1; max-width: 380px; }
+  .chipbtn { border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 5px 11px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .chipbtn.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* ---------- disparos ---------- */
+  .disp { grid-template-columns: 380px 1fr; align-items: start; }
+  @media (max-width: 1000px) { .disp { grid-template-columns: 1fr; } }
+  .opt { display: flex; align-items: center; gap: 8px; padding: 7px 4px; border-bottom: 1px solid #f1f2f4; }
+  .opt:last-child { border-bottom: 0; }
+  .opt label { flex: 1; cursor: pointer; font-weight: 600; }
+  .opt .tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .btn { border: 1px solid var(--brand); background: var(--brand); color: #fff; border-radius: 4px; padding: 8px 14px; font-weight: 700; cursor: pointer; }
+  .btn.sec { background: #fff; color: var(--brand); }
+  .btn.go { background: var(--green); border-color: var(--green); }
+  .btn.danger { background: var(--red); border-color: var(--red); }
+  .btn:disabled { opacity: .5; cursor: wait; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .row .btn { flex: 1; }
+  .confirm { display: none; margin-top: 10px; padding: 12px; border: 1px solid #f5cd47; background: #fff7d6; border-radius: 6px; }
+  .confirm.on { display: block; }
+
+  .pv { border: 1px solid var(--line); border-radius: 6px; margin-bottom: 12px; overflow: hidden; background: #fff; }
+  .pv-h { background: var(--soft); padding: 8px 12px; font-weight: 700; border-bottom: 1px solid var(--line); }
+  .pv-s { padding: 6px 12px; font-size: 11px; color: var(--muted); background: #fafbfc; border-bottom: 1px solid var(--line); font-weight: 600; }
+  .pv-chat { padding: 12px; font-size: 13px; line-height: 1.55; border-bottom: 1px dashed var(--line); word-break: break-word; }
+  .pv-mail iframe { width: 100%; height: 460px; border: 0; display: block; }
+  .empty { padding: 30px; text-align: center; color: var(--muted); }
+
+  .regras td input { width: 90px; padding: 6px; border: 1px solid var(--line); border-radius: 4px; font: inherit; text-align: center; }
+  .regras td input.bad { border-color: var(--red); background: var(--red-soft); }
+  pre.diag { white-space: pre-wrap; background: var(--soft); padding: 10px; border-radius: 4px; margin: 10px 0 0; font: 12px/1.5 Consolas, monospace; display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📊 SLA CLT / DLT</h1>
+  <span class="base" id="hBase">Carregando...</span>
+  <span class="spacer"></span>
+  <button class="hbtn" id="btnRecarregar" title="Relê a planilha e recalcula os prazos para agora">⟳ Recarregar</button>
+  <button class="hbtn prim" id="btnJira" title="Busca o backlog no Jira para todos os projetos mapeados">⬇ Atualizar do Jira</button>
+</header>
+
+<nav>
+  <button data-t="vg" class="on">Visão geral</button>
+  <button data-t="ch">Chamados <span class="cnt" id="navEst" style="display:none"></span></button>
+  <button data-t="dp">Disparos</button>
+  <button data-t="cf">Configuração</button>
+</nav>
+
+<main>
+  <div id="msg"></div>
+
+  <!-- ================= VISÃO GERAL ================= -->
+  <section class="tab on" id="t-vg">
+    <div class="grid kpis" id="kpis"></div>
+
+    <div class="grid two">
+      <div class="card">
+        <h3>Situação por time <small>clique para ver os chamados</small></h3>
+        <div id="barTimes"></div>
+        <div class="legend"><span><i class="s-red"></i>Estourado</span><span><i class="s-amber"></i>Vence em ≤5 dias</span><span><i class="s-green"></i>No prazo</span></div>
+      </div>
+      <div class="card">
+        <h3>Por prioridade</h3>
+        <table id="tPrio"></table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h3>Mais atrasados <small>pior prazo entre CLT e DLT</small></h3>
+      <div id="topAtrasados"></div>
+    </div>
+  </section>
+
+  <!-- ================= CHAMADOS ================= -->
+  <section class="tab" id="t-ch">
+    <div class="filters">
+      <input type="search" id="fBusca" placeholder="Buscar issue, resumo, responsável...">
+      <select id="fTime"><option value="">Todos os times</option></select>
+      <select id="fPrio">
+        <option value="">Todas as prioridades</option>
+        <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+      </select>
+      <span class="chipbtn on" data-f="">Todos</span>
+      <span class="chipbtn" data-f="ESTOURADO">🔴 Estourados</span>
+      <span class="chipbtn" data-f="PROXIMO">🟡 A vencer</span>
+      <span class="chipbtn" data-f="DENTRO">🟢 No prazo</span>
+      <span class="chipbtn" data-f="SEMCLT">Sem data do ticket</span>
+      <span class="muted" id="fCount"></span>
+    </div>
+    <div class="tablewrap"><table id="tChamados"></table></div>
+  </section>
+
+  <!-- ================= DISPAROS ================= -->
+  <section class="tab" id="t-dp">
+    <div class="grid disp">
+      <div class="grid">
+        <div class="card">
+          <h3>Canais</h3>
+          <div class="opt"><input type="checkbox" id="cChat" checked><label for="cChat">💬 Google Chat</label></div>
+          <div class="opt"><input type="checkbox" id="cMail" checked><label for="cMail">✉️ E-mail</label></div>
+        </div>
+
+        <div class="card">
+          <h3>Times <small id="selInfo"></small></h3>
+          <div class="opt"><input type="checkbox" id="tTodos" checked><label for="tTodos">Todos os times</label></div>
+          <div id="listaTimes"></div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="margin-top:0">
+            <button class="btn sec" id="bPrev">👁 Pré-visualizar</button>
+            <button class="btn go" id="bEnviar">📤 Enviar</button>
+          </div>
+          <div class="row"><button class="btn sec" id="bTeste">🧪 E-mail de teste só para mim</button></div>
+          <div class="confirm" id="confirm">
+            <div id="confirmTxt"></div>
+            <div class="row">
+              <button class="btn sec" id="bCancelar">Cancelar</button>
+              <button class="btn danger" id="bConfirmar">Confirmar envio</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Envio automático</h3>
+          <div id="gatInfo" class="muted"></div>
+          <div class="row"><button class="btn sec" id="bGatilho">...</button></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Pré-visualização</h3>
+          <div id="preview"><div class="empty">Escolha os canais e os times e clique em <b>Pré-visualizar</b>.<br>Nada é enviado nesse passo.</div></div>
+        </div>
+        <div class="card">
+          <h3>Histórico <small>últimos envios, extrações e alterações</small></h3>
+          <div style="max-height:360px;overflow:auto"><table id="tHist"></table></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CONFIGURAÇÃO ================= -->
+  <section class="tab" id="t-cf">
+    <div class="grid two">
+      <div class="card">
+        <h3>Atualizar do Jira <small>escolha os projetos</small></h3>
+        <div class="opt"><input type="checkbox" id="pTodos" checked><label for="pTodos">Todos os projetos</label></div>
+        <div id="listaProjetos"></div>
+        <div class="row"><button class="btn" id="bAnalisar">⬇ Analisar projetos selecionados</button></div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Regras de SLA <small>dias completos desde a abertura · DLT aceita N/A</small></h3>
+          <table class="regras">
+            <tr><th>Prioridade</th><th class="num">CLT</th><th class="num">DLT</th></tr>
+            <tbody id="regrasBody"></tbody>
+          </table>
+          <div class="row"><button class="btn go" id="bRegras">Salvar regras</button></div>
+          <div class="sub" style="margin-top:6px">Valem a partir da próxima atualização do Jira.</div>
+        </div>
+
+        <div class="card">
+          <h3>Instalação</h3>
+          <div class="sub" id="infoInst"></div>
+          <div class="row">
+            <button class="btn sec" id="bDiag">🔎 Diagnóstico</button>
+            <a class="btn sec" id="lPlanilha" style="text-align:center">Abrir planilha</a>
+            <a class="btn sec" id="lLooker" style="text-align:center">Looker Studio</a>
+          </div>
+          <pre class="diag" id="diag"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+var URL_LOOKER = <?!= JSON.stringify(urlLooker) ?>;
+var PRIOS = ['Critical', 'High', 'Medium', 'Low'];
+var NOMES_PRIO = { Critical: 'Crítica', High: 'Alta', Medium: 'Média', Low: 'Baixa' };
+var D = null;
+var estado = { faixa: '', ordem: 'pior', asc: true };
+
+/* ---------------- utilidades ---------------- */
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function msg(texto, tipo) { var m = $('msg'); m.className = texto ? tipo : ''; m.textContent = texto || ''; if (texto) window.scrollTo(0, 0); }
+function run(fn, args, ok, botoes) {
+  (botoes || []).forEach(function (b) { $(b).disabled = true; });
+  var r = google.script.run
+    .withSuccessHandler(function (x) { (botoes || []).forEach(function (b) { $(b).disabled = false; }); ok(x); })
+    .withFailureHandler(function (e) { (botoes || []).forEach(function (b) { $(b).disabled = false; }); msg('Erro: ' + (e && e.message ? e.message : e), 'erro'); });
+  r[fn].apply(r, args || []);
+}
+function pct(v) { return v === null || v === undefined ? '—' : String(v).replace('.', ',') + '%'; }
+function faixaPill(f) {
+  if (f === 'ESTOURADO') return '<span class="pill p-red">Estourado</span>';
+  if (f === 'PROXIMO') return '<span class="pill p-amber">A vencer</span>';
+  return '<span class="pill p-green">No prazo</span>';
+}
+function linkIssue(k) { return '<a class="k" href="' + esc(D.jiraBase + '/browse/' + k) + '">' + esc(k) + '</a>'; }
+
+function prazoHtml(p) {
+  if (p.semData) return '<span class="pill p-grey">n/a</span><div class="sub">sem data do ticket</div>';
+  if (p.semLimite) return '<span class="prazo"><b>' + p.dias + 'd</b></span><div class="sub">sem limite</div>';
+  var cls = p.rest < 0 ? 'red' : (p.rest <= 5 ? 'amber' : '');
+  var txt = p.rest < 0 ? 'venceu há ' + (-p.rest) + 'd' : (p.rest === 0 ? 'vence hoje' : 'vence em ' + p.rest + 'd');
+  return '<span class="prazo ' + cls + '"><b>' + p.dias + '/' + p.limite + 'd</b></span><div class="sub">' + txt + ' · ' + esc(p.venc || '?') + '</div>';
+}
+
+/* ---------------- abas ---------------- */
+document.querySelectorAll('nav button').forEach(function (b) {
+  b.addEventListener('click', function () { abrirAba(b.getAttribute('data-t')); });
+});
+function abrirAba(t) {
+  document.querySelectorAll('nav button').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-t') === t); });
+  document.querySelectorAll('.tab').forEach(function (x) { x.classList.toggle('on', x.id === 't-' + t); });
+}
+
+/* ---------------- carga ---------------- */
+function carregar(silencioso) {
+  if (!silencioso) msg('Carregando dados da planilha...', 'info');
+  run('obterDashboard', [], function (d) {
+    D = d;
+    renderTudo();
+    if (!silencioso) msg('');
+    if (d.avisosMapeamento && d.avisosMapeamento.length) msg('⚠️ Problemas na aba Mapeamento_Times:\n' + d.avisosMapeamento.join('\n'), 'erro');
+  }, ['btnRecarregar']);
+}
+
+function renderTudo() {
+  $('hBase').innerHTML = (D.ultimaExtracao ? 'Base Jira: <b>' + esc(D.ultimaExtracao) + '</b>' : 'Base Jira: <b>nunca atualizada</b>') +
+    (D.baseDesatualizada ? ' · <span class="pill p-red">desatualizada</span>' : '') +
+    ' · prazos recalculados em ' + esc(D.geradoEm);
+  var est = D.kpis.estourados;
+  $('navEst').style.display = est ? 'inline-block' : 'none';
+  $('navEst').textContent = est;
+  renderKpis(); renderTimes(); renderPrio(); renderTop();
+  renderFiltroTimes(); renderChamados();
+  renderDisparoTimes(); renderGatilho(); renderHistorico();
+  renderProjetos(); renderRegras(); renderInstalacao();
+}
+
+/* ---------------- visão geral ---------------- */
+function kpi(cls, valor, rotulo, sub, filtro, meter) {
+  return '<div class="kpi ' + cls + (filtro !== undefined ? ' click' : '') + '"' + (filtro !== undefined ? ' data-filtro="' + filtro + '"' : '') + '>' +
+    '<div class="v">' + valor + '</div><div class="l">' + rotulo + '</div>' +
+    (meter !== undefined ? '<div class="meter"><i style="width:' + (meter || 0) + '%;background:' + (meter >= 90 ? '#4bce97' : meter >= 75 ? '#e2a03f' : '#c9372c') + '"></i></div>' : '') +
+    (sub ? '<div class="s">' + sub + '</div>' : '') + '</div>';
+}
+function renderKpis() {
+  var k = D.kpis;
+  $('kpis').innerHTML =
+    kpi('brand', k.total, 'Em atendimento', k.idadeMediaDLT !== null ? 'idade média ' + k.idadeMediaDLT + 'd desde a criação' : '', '') +
+    kpi('red', k.estourados, 'Estourados', k.maiorAtraso ? 'pior: ' + esc(k.maiorAtraso.key) + ' (+' + k.maiorAtraso.dias + 'd)' : 'nenhum vencido', 'ESTOURADO') +
+    kpi('amber', k.proximos, 'Vencem em ≤5 dias', 'agir esta semana', 'PROXIMO') +
+    kpi('green', k.dentro, 'No prazo', '', 'DENTRO') +
+    kpi('', pct(k.pctCLT), 'CLT no prazo', k.cltEstourados + ' estourado(s) de ' + k.baseCLT, undefined, k.pctCLT) +
+    kpi('', pct(k.pctDLT), 'DLT no prazo', k.dltEstourados + ' estourado(s) de ' + k.baseDLT, undefined, k.pctDLT) +
+    kpi('', k.semDataTicket, 'Sem data do ticket', 'CLT não calculado', 'SEMCLT') +
+    kpi('', k.semResponsavel, 'Sem responsável', '');
+  document.querySelectorAll('.kpi.click').forEach(function (el) {
+    el.addEventListener('click', function () { irParaChamados({ faixa: el.getAttribute('data-filtro') }); });
+  });
+}
+
+function renderTimes() {
+  var times = D.times.filter(function (t) { return t.total > 0; });
+  if (!times.length) { $('barTimes').innerHTML = '<div class="empty">Nenhum chamado em atendimento. Use <b>Atualizar do Jira</b>.</div>'; return; }
+  var max = Math.max.apply(null, times.map(function (t) { return t.total; }));
+  $('barTimes').innerHTML = times.sort(function (a, b) { return b.est - a.est || b.total - a.total; }).map(function (t) {
+    var w = function (n) { return (n / max * 100) + '%'; };
+    var seg = function (n, c) { return n ? '<span class="' + c + '" style="width:' + w(n) + '" title="' + n + '">' + n + '</span>' : ''; };
+    return '<div class="barrow" data-time="' + esc(t.nome) + '"><div class="nm" title="' + esc(t.nome) + '">' + esc(t.nome) +
+      (t.desatualizada ? ' <span class="pill p-red" title="Base de ' + esc(t.base) + '">!</span>' : '') + '</div>' +
+      '<div class="stack">' + seg(t.est, 's-red') + seg(t.prox, 's-amber') + seg(t.dentro, 's-green') + '</div>' +
+      '<div class="tt">' + t.total + '</div></div>';
+  }).join('');
+  document.querySelectorAll('.barrow').forEach(function (el) {
+    el.addEventListener('click', function () { irParaChamados({ time: el.getAttribute('data-time') }); });
+  });
+}
+
+function renderPrio() {
+  var lim = D.regras;
+  $('tPrio').innerHTML = '<tr><th>Prioridade</th><th class="num">Limite CLT / DLT</th><th class="num">🔴</th><th class="num">🟡</th><th class="num">🟢</th><th class="num">Total</th></tr>' +
+    D.porPrioridade.map(function (p) {
+      var dlt = lim.DLT[p.prioridade];
+      return '<tr><td><b>' + NOMES_PRIO[p.prioridade] + '</b></td><td class="num muted">' + lim.CLT[p.prioridade] + 'd / ' + (dlt === 'N/A' ? '∞' : dlt + 'd') + '</td>' +
+        '<td class="num">' + (p.est ? '<b style="color:var(--red)">' + p.est + '</b>' : '0') + '</td>' +
+        '<td class="num">' + p.prox + '</td><td class="num">' + p.dentro + '</td><td class="num"><b>' + p.total + '</b></td></tr>';
+    }).join('');
+}
+
+function renderTop() {
+  var top = D.itens.filter(function (i) { return i.faixa !== 'DENTRO'; }).slice(0, 10);
+  if (!top.length) { $('topAtrasados').innerHTML = '<div class="empty">✅ Nenhum chamado vencido ou perto de vencer.</div>'; return; }
+  $('topAtrasados').innerHTML = '<table>' + tabelaItens(top, false) + '</table>';
+}
+
+/* ---------------- chamados ---------------- */
+function renderFiltroTimes() {
+  var atual = $('fTime').value;
+  $('fTime').innerHTML = '<option value="">Todos os times</option>' +
+    D.times.filter(function (t) { return t.total; }).map(function (t) { return '<option>' + esc(t.nome) + '</option>'; }).join('');
+  $('fTime').value = atual;
+}
+
+function irParaChamados(f) {
+  if (f.time !== undefined) $('fTime').value = f.time;
+  estado.faixa = f.faixa || '';
+  document.querySelectorAll('.chipbtn').forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-f') === estado.faixa); });
+  renderChamados();
+  abrirAba('ch');
+}
+
+function filtrar() {
+  var q = $('fBusca').value.trim().toLowerCase(), t = $('fTime').value, p = $('fPrio').value, f = estado.faixa;
+  return D.itens.filter(function (i) {
+    if (t && i.time !== t) return false;
+    if (p && i.prioridade !== p) return false;
+    if (f === 'SEMCLT' && !i.clt.semData) return false;
+    if (f && f !== 'SEMCLT' && i.faixa !== f) return false;
+    if (q && (i.key + ' ' + i.resumo + ' ' + i.responsavel + ' ' + i.status).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+}
+
+function valorOrdem(i, c) {
+  if (c === 'pior') return i.pior;
+  if (c === 'clt') return i.clt.rest === null ? 9999 : i.clt.rest;
+  if (c === 'dlt') return i.dlt.rest === null ? 9999 : i.dlt.rest;
+  if (c === 'prio') return PRIOS.indexOf(i.prioridade);
+  return String(i[c] || '').toLowerCase();
+}
+
+function renderChamados() {
+  var lista = filtrar().sort(function (a, b) {
+    var x = valorOrdem(a, estado.ordem), y = valorOrdem(b, estado.ordem);
+    return (x < y ? -1 : x > y ? 1 : 0) * (estado.asc ? 1 : -1);
+  });
+  $('fCount').textContent = lista.length + ' de ' + D.itens.length + ' chamados';
+  $('tChamados').innerHTML = lista.length ? tabelaItens(lista, true) : '<tr><td class="empty">Nenhum chamado com esses filtros.</td></tr>';
+  document.querySelectorAll('#tChamados th.sort').forEach(function (th) {
+    th.addEventListener('click', function () {
+      var c = th.getAttribute('data-c');
+      estado.asc = estado.ordem === c ? !estado.asc : true;
+      estado.ordem = c;
+      renderChamados();
+    });
+  });
+}
+
+function tabelaItens(lista, ordenavel) {
+  var th = function (rot, c, cls) {
+    var seta = ordenavel && estado.ordem === c ? (estado.asc ? ' ▲' : ' ▼') : '';
+    return '<th class="' + (ordenavel ? 'sort ' : '') + (cls || '') + '" data-c="' + c + '">' + rot + seta + '</th>';
+  };
+  var h = '<thead><tr>' + th('Issue', 'key') + th('Situação', 'pior') + th('Prior.', 'prio') + th('Resumo', 'resumo') +
+    th('Responsável', 'responsavel') + th('CLT', 'clt') + th('DLT', 'dlt') + th('Time', 'time') + '</tr></thead><tbody>';
+  return h + lista.map(function (i) {
+    return '<tr><td>' + linkIssue(i.key) + '<div class="sub">' + esc(i.status) + '</div></td>' +
+      '<td>' + faixaPill(i.faixa) + '</td>' +
+      '<td>' + NOMES_PRIO[i.prioridade] + '</td>' +
+      '<td style="max-width:360px">' + esc(i.resumo) + '</td>' +
+      '<td>' + (/^sem respons/i.test(i.responsavel) ? '<span class="pill p-grey">Sem responsável</span>' : esc(i.responsavel)) + '</td>' +
+      '<td>' + prazoHtml(i.clt) + '</td><td>' + prazoHtml(i.dlt) + '</td>' +
+      '<td class="sub">' + esc(i.time) + '</td></tr>';
+  }).join('') + '</tbody>';
+}
+
+$('fBusca').addEventListener('input', renderChamados);
+$('fTime').addEventListener('change', renderChamados);
+$('fPrio').addEventListener('change', renderChamados);
+document.querySelectorAll('.chipbtn').forEach(function (c) {
+  c.addEventListener('click', function () { irParaChamados({ faixa: c.getAttribute('data-f') }); });
+});
+
+/* ---------------- disparos ---------------- */
+function renderDisparoTimes() {
+  var marcados = {};
+  document.querySelectorAll('.cT').forEach(function (c) { marcados[c.value] = c.checked; });
+  $('listaTimes').innerHTML = D.times.map(function (t, idx) {
+    var wh = t.webhook === 'time' ? '<span class="pill p-green">webhook do time</span>' :
+      t.webhook === 'padrao' ? '<span class="pill p-amber">webhook padrão</span>' : '<span class="pill p-red">sem webhook</span>';
+    var em = t.emails.length ? '<span class="pill p-green" title="' + esc(t.emails.join(', ')) + '">' + t.emails.length + ' e-mail(s)</span>' : '<span class="pill p-red">sem e-mail</span>';
+    var sit = t.est ? '<span class="pill p-red">' + t.est + ' 🔴</span>' : (t.prox ? '<span class="pill p-amber">' + t.prox + ' 🟡</span>' : '<span class="pill p-grey">' + t.total + '</span>');
+    var chk = marcados[t.nome] === undefined ? true : marcados[t.nome];
+    return '<div class="opt"><input type="checkbox" class="cT" id="cT' + idx + '" value="' + esc(t.nome) + '"' + (chk ? ' checked' : '') + '>' +
+      '<label for="cT' + idx + '">' + esc(t.nome) + '</label><div class="tags">' + sit + wh + em + '</div></div>';
+  }).join('');
+  document.querySelectorAll('.cT').forEach(function (c) { c.addEventListener('change', sincTimes); });
+  sincTimes();
+}
+function sincTimes() {
+  var cs = document.querySelectorAll('.cT'), on = document.querySelectorAll('.cT:checked');
+  $('tTodos').checked = cs.length === on.length;
+  $('selInfo').textContent = on.length + ' de ' + cs.length + ' selecionados';
+}
+$('tTodos').addEventListener('change', function () {
+  var v = this.checked;
+  document.querySelectorAll('.cT').forEach(function (c) { c.checked = v; });
+  sincTimes();
+});
+
+function timesSel() {
+  if ($('tTodos').checked) return [];
+  var l = [];
+  document.querySelectorAll('.cT:checked').forEach(function (c) { l.push(c.value); });
+  return l;
+}
+function canaisSel() { return { chat: $('cChat').checked, email: $('cMail').checked }; }
+function validar(exigeCanal) {
+  if (exigeCanal && !$('cChat').checked && !$('cMail').checked) { msg('Selecione ao menos um canal.', 'erro'); return false; }
+  if (!$('tTodos').checked && !timesSel().length) { msg('Selecione ao menos um time.', 'erro'); return false; }
+  return true;
+}
+function descSel() {
+  var c = canaisSel(), t = timesSel();
+  return [c.chat ? 'Chat' : '', c.email ? 'E-mail' : ''].filter(Boolean).join(' + ') + ' · ' + (t.length ? t.join(', ') : 'todos os times');
+}
+
+function renderChat(texto) {
+  var s = esc(texto);
+  s = s.replace(/&lt;(https?:\/\/[^|\s]+)\|([^\n]+?)&gt;/g, '<a href="$1">$2</a>');
+  s = s.replace(/\*([^*\n]+)\*/g, '<b>$1</b>');
+  s = s.replace(/(^|[\s(])_([^_\n]+)_/g, '$1<i>$2</i>');
+  return s.replace(/\n/g, '<br>');
+}
+
+$('bPrev').addEventListener('click', function () {
+  if (!validar(true)) return;
+  $('confirm').classList.remove('on');
+  msg('Montando pré-visualização (' + descSel() + ')...', 'info');
+  run('dashPrevisualizar', [timesSel(), canaisSel()], function (r) {
+    msg(r.mensagem, r.previews.length ? 'ok' : 'info');
+    if (!r.previews.length) { $('preview').innerHTML = '<div class="empty">' + esc(r.mensagem) + '</div>'; return; }
+    var mails = [];
+    $('preview').innerHTML = r.previews.map(function (p) {
+      var h = '<div class="pv"><div class="pv-h">' + esc(p.time) + '</div>';
+      if (p.chat) {
+        h += '<div class="pv-s">💬 Chat → ' + esc(p.chat.destino) + ' · ' + p.chat.mensagens.length + ' mensagem(ns)</div>';
+        h += p.chat.mensagens.map(function (m) { return '<div class="pv-chat">' + renderChat(m) + '</div>'; }).join('');
+      }
+      if (p.email) {
+        h += '<div class="pv-s">✉️ ' + esc(p.email.destino) + '<br>Assunto: ' + esc(p.email.assunto) + '</div>';
+        h += '<div class="pv-mail"><iframe sandbox="allow-popups allow-popups-to-escape-sandbox" data-i="' + mails.length + '"></iframe></div>';
+        mails.push(p.email.html);
+      }
+      return h + '</div>';
+    }).join('');
+    document.querySelectorAll('.pv-mail iframe').forEach(function (f) { f.srcdoc = '<base target="_blank">' + mails[+f.getAttribute('data-i')]; });
+  }, ['bPrev', 'bEnviar', 'bTeste']);
+});
+
+$('bEnviar').addEventListener('click', function () {
+  if (!validar(true)) return;
+  $('confirmTxt').innerHTML = '<b>Enviar agora para os canais reais?</b><br>' + esc(descSel()) +
+    (D.baseDesatualizada ? '<br><b style="color:var(--red)">⚠️ A base do Jira está desatualizada.</b> Considere "Atualizar do Jira" antes.' : '');
+  $('confirm').classList.add('on');
+});
+$('bCancelar').addEventListener('click', function () { $('confirm').classList.remove('on'); });
+$('bConfirmar').addEventListener('click', function () {
+  $('confirm').classList.remove('on');
+  msg('Enviando (' + descSel() + ')... alguns segundos por time.', 'info');
+  run('dashEnviar', [timesSel(), canaisSel()], function (r) {
+    msg(r, r.indexOf('FALHAS') >= 0 ? 'erro' : 'ok');
+    carregar(true);
+  }, ['bPrev', 'bEnviar', 'bTeste']);
+});
+
+$('bTeste').addEventListener('click', function () {
+  if (!validar(false)) return;
+  msg('Enviando e-mail de teste para ' + (D.usuario || 'você') + '...', 'info');
+  run('dashEmailTeste', [timesSel()], function (r) {
+    msg('🧪 ' + r + '\nConfira sua caixa de entrada (assunto começa com [TESTE]).', r.indexOf('FALHAS') >= 0 ? 'erro' : 'ok');
+    carregar(true);
+  }, ['bPrev', 'bEnviar', 'bTeste']);
+});
+
+function renderGatilho() {
+  var c = D.canaisAgendado || {};
+  var canais = [c.chat ? 'Chat' : '', c.email ? 'E-mail' : ''].filter(Boolean).join(' + ');
+  $('gatInfo').innerHTML = D.gatilhoAtivo
+    ? '<span class="pill p-green">ATIVO</span> Atualiza do Jira e envia (' + esc(canais) + ') por volta das ' + D.horaEnvio + 'h, em dias úteis.'
+    : '<span class="pill p-red">INATIVO</span> Nenhum envio automático criado por você.';
+  $('bGatilho').textContent = D.gatilhoAtivo ? '⏸ Desativar envio diário' : '▶ Ativar envio diário';
+}
+$('bGatilho').addEventListener('click', function () {
+  run('dashAlternarGatilho', [!D.gatilhoAtivo], function (r) { msg(r, 'ok'); carregar(true); }, ['bGatilho']);
+});
+
+function renderHistorico() {
+  if (!D.historico.length) { $('tHist').innerHTML = '<tr><td class="empty">Sem registros ainda.</td></tr>'; return; }
+  var cor = function (s) { return /ERRO|FALHA/.test(s) ? 'p-red' : /SKIP|SEM_|PARCIAL|AVISO/.test(s) ? 'p-amber' : /TESTE/.test(s) ? 'p-brand' : 'p-green'; };
+  $('tHist').innerHTML = '<tr><th>Quando</th><th>Ação</th><th>Status</th><th>Detalhe</th></tr>' + D.historico.map(function (h) {
+    return '<tr><td class="sub" style="white-space:nowrap">' + esc(h.quando) + '</td><td class="sub">' + esc(h.acao.replace(/_/g, ' ')) + '</td>' +
+      '<td><span class="pill ' + cor(h.status) + '">' + esc(h.status) + '</span></td><td class="sub">' + esc(h.detalhe) + '</td></tr>';
+  }).join('');
+}
+
+/* ---------------- configuração ---------------- */
+function renderProjetos() {
+  var marcados = {};
+  document.querySelectorAll('.cP').forEach(function (c) { marcados[c.value] = c.checked; });
+  $('listaProjetos').innerHTML = D.projetos.map(function (p, i) {
+    var chk = marcados[p.sigla] === undefined ? true : marcados[p.sigla];
+    return '<div class="opt"><input type="checkbox" class="cP" id="cP' + i + '" value="' + esc(p.sigla) + '"' + (chk ? ' checked' : '') + '>' +
+      '<label for="cP' + i + '">' + esc(p.sigla) + ' <span class="sub">' + esc(p.time) + '</span></label>' +
+      '<span class="sub">atualizado ' + esc(p.ultimaExtracao) + '</span></div>';
+  }).join('') || '<div class="empty">Nenhum projeto na aba Mapeamento_Times.</div>';
+  document.querySelectorAll('.cP').forEach(function (c) {
+    c.addEventListener('change', function () {
+      $('pTodos').checked = document.querySelectorAll('.cP').length === document.querySelectorAll('.cP:checked').length;
+    });
+  });
+}
+$('pTodos').addEventListener('change', function () {
+  var v = this.checked;
+  document.querySelectorAll('.cP').forEach(function (c) { c.checked = v; });
+});
+function projetosSel() {
+  var l = [];
+  document.querySelectorAll('.cP:checked').forEach(function (c) { l.push(c.value); });
+  return l;
+}
+function atualizarJira(projetos, botoes) {
+  if (!projetos.length) { msg('Selecione ao menos um projeto.', 'erro'); return; }
+  msg('Buscando no Jira: ' + projetos.join(', ') + '... pode levar alguns segundos.', 'info');
+  run('dashAnalisar', [projetos], function (r) { msg(r, 'ok'); carregar(true); }, botoes);
+}
+$('bAnalisar').addEventListener('click', function () { atualizarJira(projetosSel(), ['bAnalisar', 'btnJira']); });
+$('btnJira').addEventListener('click', function () {
+  atualizarJira(D ? D.projetos.map(function (p) { return p.sigla; }) : [], ['bAnalisar', 'btnJira']);
+});
+$('btnRecarregar').addEventListener('click', function () { carregar(false); });
+
+function renderRegras() {
+  if (document.activeElement && document.activeElement.closest && document.activeElement.closest('.regras')) return;
+  $('regrasBody').innerHTML = PRIOS.map(function (p) {
+    var d = D.regras.DLT[p];
+    return '<tr><td><b>' + NOMES_PRIO[p] + '</b></td><td class="num"><input id="rc' + p + '" value="' + esc(D.regras.CLT[p]) + '"></td>' +
+      '<td class="num"><input id="rd' + p + '" value="' + esc(d === 'N/A' ? 'N/A' : d) + '"></td></tr>';
+  }).join('');
+}
+$('bRegras').addEventListener('click', function () {
+  var r = { CLT: {}, DLT: {} }, erros = [];
+  PRIOS.forEach(function (p) {
+    var c = $('rc' + p), d = $('rd' + p);
+    c.classList.remove('bad'); d.classList.remove('bad');
+    var vc = c.value.trim(), vd = d.value.trim().toUpperCase();
+    if (!/^\d+$/.test(vc) || +vc < 1 || +vc > 999) { c.classList.add('bad'); erros.push('CLT ' + NOMES_PRIO[p]); } else r.CLT[p] = +vc;
+    if (vd === '' || vd === 'N/A') r.DLT[p] = 'N/A';
+    else if (!/^\d+$/.test(vd) || +vd < 1 || +vd > 999) { d.classList.add('bad'); erros.push('DLT ' + NOMES_PRIO[p]); } else r.DLT[p] = +vd;
+  });
+  if (erros.length) { msg('Valores inválidos: ' + erros.join(', ') + '. Use inteiros de 1 a 999 (DLT aceita N/A).', 'erro'); return; }
+  run('dashSalvarRegras', [r], function (m) { msg(m, 'ok'); carregar(true); }, ['bRegras']);
+});
+
+function renderInstalacao() {
+  $('infoInst').innerHTML = 'Módulo de disparos v' + esc(D.versao) + ' · você: ' + esc(D.usuario || 'não identificado');
+  $('lPlanilha').href = D.urlPlanilha;
+  if (URL_LOOKER) $('lLooker').href = URL_LOOKER; else $('lLooker').style.display = 'none';
+}
+$('bDiag').addEventListener('click', function () {
+  run('dashDiagnostico', [], function (t) { var el = $('diag'); el.style.display = 'block'; el.textContent = t; }, ['bDiag']);
+});
+
+carregar(false);
+</script>
+</body>
+</html>
