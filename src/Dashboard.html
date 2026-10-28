@@ -257,6 +257,16 @@
         <div class="row"><button class="btn" id="bAnalisar">⬇ Analisar projetos selecionados</button></div>
       </div>
 
+      <div class="card" id="cardCampo" style="grid-column:1 / -1">
+        <h3>Campo de abertura do ticket (base do CLT) <small id="campoAtual"></small></h3>
+        <div class="sub" style="margin-bottom:8px">O CLT conta a partir da data de abertura do ticket. Informe uma issue que tenha ticket, inspecione os campos de data dela no Jira e escolha o que guarda a abertura do ticket (no outro painel, a 4136 foi aberta em 08/09/2026).</div>
+        <div class="filters" style="margin-bottom:0">
+          <input type="search" id="campoIssue" placeholder="Ex.: DSERTAF4-4136" style="max-width:220px">
+          <button class="btn sec" id="bInspecionar">🔎 Inspecionar campos da issue</button>
+        </div>
+        <div id="campoResultado" style="margin-top:10px"></div>
+      </div>
+
       <div class="grid">
         <div class="card">
           <h3>Regras de SLA <small>dias completos desde a abertura · DLT aceita N/A</small></h3>
@@ -333,6 +343,9 @@ function carregar(silencioso) {
     D = d;
     renderTudo();
     if (!silencioso) msg('');
+    if (d.kpis.total && d.kpis.semDataTicket === d.kpis.total) {
+      msg('⚠️ Nenhum chamado tem data de abertura do ticket no campo ' + d.campoAbertura + ': o CLT não está sendo calculado.\nConfira o campo em Configuração → Campo de abertura do ticket.', 'erro');
+    }
     if (d.avisosMapeamento && d.avisosMapeamento.length) msg('⚠️ Problemas na aba Mapeamento_Times:\n' + d.avisosMapeamento.join('\n'), 'erro');
   }, ['btnRecarregar']);
 }
@@ -608,6 +621,35 @@ function renderHistorico() {
   }).join('');
 }
 
+/* ---------------- campo de abertura do ticket ---------------- */
+$('bInspecionar').addEventListener('click', function () {
+  var k = $('campoIssue').value.trim();
+  if (!k) { msg('Informe uma issue, por exemplo DSERTAF4-4136.', 'erro'); return; }
+  msg('Lendo os campos de ' + k + ' no Jira...', 'info');
+  run('dashInspecionarCampos', [k], function (r) {
+    msg('');
+    var h = '<table><tr><th>Campo</th><th>ID</th><th>Valor na ' + esc(r.issue) + '</th><th></th></tr>' + r.campos.map(function (c) {
+      return '<tr><td><b>' + esc(c.nome) + '</b>' + (c.sugerido ? ' <span class="pill p-brand">provável</span>' : '') + '</td>' +
+        '<td class="sub">' + esc(c.id) + '</td>' +
+        '<td>' + (c.data ? '<b>' + esc(c.data) + '</b>' : '<span class="pill p-grey">' + esc(c.valor) + '</span>') + '</td>' +
+        '<td class="num">' + (c.atual ? '<span class="pill p-green">em uso</span>' :
+          (c.id.indexOf('customfield_') === 0 ? '<button class="btn sec bUsar" data-id="' + esc(c.id) + '" data-nome="' + esc(c.nome) + '">Usar este</button>' : '')) + '</td></tr>';
+    }).join('') + '</table>';
+    if (r.relacionados.length) {
+      h += '<div class="sub" style="margin-top:8px">Campos de ticket (não-data) nesta issue: ' +
+        r.relacionados.map(function (x) { return esc(x.nome) + ' = ' + esc(x.valor) + ' (' + esc(x.id) + ')'; }).join(' · ') + '</div>';
+    }
+    $('campoResultado').innerHTML = h;
+    document.querySelectorAll('.bUsar').forEach(function (b) {
+      b.addEventListener('click', function () {
+        run('dashDefinirCampoAbertura', [b.getAttribute('data-id')], function (m) {
+          msg(m, 'ok'); $('campoResultado').innerHTML = ''; carregar(true);
+        }, ['bInspecionar']);
+      });
+    });
+  }, ['bInspecionar']);
+});
+
 /* ---------------- configuração ---------------- */
 function renderProjetos() {
   var marcados = {};
@@ -667,6 +709,8 @@ $('bRegras').addEventListener('click', function () {
 });
 
 function renderInstalacao() {
+  $('campoAtual').textContent = 'em uso: ' + (D.campoAbertura || '?');
+  if (!$('campoIssue').value && D.itens.length) $('campoIssue').value = D.itens[0].key;
   $('infoInst').innerHTML = 'Módulo de disparos v' + esc(D.versao) + ' · você: ' + esc(D.usuario || 'não identificado');
   $('lPlanilha').href = D.urlPlanilha;
   if (URL_LOOKER) $('lLooker').href = URL_LOOKER; else $('lLooker').style.display = 'none';

@@ -25,7 +25,7 @@ const CONFIG = {
   HORA_ENVIO_DIARIO: 8, // hora (fuso do projeto) do envio automático
 
   CUSTOM_FIELDS: {
-    DATA_ABERTURA_TICKET: 'customfield_10100', // Data e Hora de Abertura do Ticket
+    DATA_ABERTURA_TICKET: 'customfield_10100', // Padrão. O dashboard pode trocar (Script Property CAMPO_ABERTURA_TICKET)
     PRIORIDADE_INTERNA: 'customfield_10010'    // Prioridade Interna
   }
 };
@@ -337,6 +337,9 @@ function processarRelatorioCLTDLT(parametros) {
   let totalProximo = 0;
   let totalEstourado = 0;
 
+  const campoAbertura = campoAberturaTicket_();
+  let semDataTicket = 0;
+
   issues.forEach((issue) => {
     const key = issue.key;
     const fields = issue.fields || {};
@@ -354,11 +357,12 @@ function processarRelatorioCLTDLT(parametros) {
     //     (não usa a criação da issue como substituta, o que transformaria CLT em DLT).
     // DLT conta da CRIAÇÃO DA ISSUE no Jira (campo created).
     // Regra: dias completos de 24h desde a data/hora de abertura (mesma do painel da sprint).
-    const aberturaTicket = parseJiraDataHora_(fields[CONFIG.CUSTOM_FIELDS.DATA_ABERTURA_TICKET]);
+    const aberturaTicket = parseJiraDataHora_(fields[campoAbertura]);
     const criacaoIssue = parseJiraDataHora_(fields.created);
     const resolucao = parseJiraDataHora_(fields.resolutiondate);
     const dataFinal = resolucao || hoje;
     const temCLT = !!aberturaTicket;
+    if (!temCLT) semDataTicket++;
 
     const dataAberturaTicketDia = dataLocal_(aberturaTicket);
     const dataCriacaoIssueDia = dataLocal_(criacaoIssue);
@@ -449,7 +453,10 @@ function processarRelatorioCLTDLT(parametros) {
     proximos: totalProximo,
     dentro: totalDentro,
     mensagem: `Atualização concluída para [${projetoInput}]! Processados: ${novasLinhas.length} ` +
-      `(🔴 ${totalEstourado} | 🟡 ${totalProximo} | 🟢 ${totalDentro}) | Base consolidada: ${todasAsLinhas.length} chamados.`
+      `(🔴 ${totalEstourado} | 🟡 ${totalProximo} | 🟢 ${totalDentro}) | Base consolidada: ${todasAsLinhas.length} chamados.` +
+      (semDataTicket ? `\n⚠️ ${semDataTicket} issue(s) sem data no campo de abertura do ticket (${campoAbertura}): CLT n/a.` +
+        (semDataTicket === novasLinhas.length ? ' Nenhuma tem a data: confira o campo em Configuração → Campo de abertura do ticket.' : '') : ''),
+    semDataTicket: semDataTicket
   };
 }
 
@@ -544,7 +551,7 @@ function buscarIssuesPorJQL_(jql) {
     const endpoint = '/rest/api/2/search?jql=' + encodeURIComponent(jql) +
       '&startAt=' + startAt +
       '&maxResults=' + CONFIG.MAX_RESULTS +
-      '&fields=' + encodeURIComponent(`summary,status,assignee,created,priority,resolutiondate,${CONFIG.CUSTOM_FIELDS.DATA_ABERTURA_TICKET},${CONFIG.CUSTOM_FIELDS.PRIORIDADE_INTERNA}`);
+      '&fields=' + encodeURIComponent(`summary,status,assignee,created,priority,resolutiondate,${campoAberturaTicket_()},${CONFIG.CUSTOM_FIELDS.PRIORIDADE_INTERNA}`);
 
     const resp = chamarJiraApi_(endpoint, 'get');
     const issues = resp.issues || [];
@@ -645,6 +652,11 @@ function parseJiraDataHora_(valor) {
 /** Dias completos de 24h entre duas datas/horas (regra do painel da sprint). */
 function diasCompletos_(inicio, fim) {
   return Math.floor((fim.getTime() - inicio.getTime()) / 86400000);
+}
+
+/** Campo do Jira com a data de abertura do ticket (base do CLT). Configurável pelo dashboard. */
+function campoAberturaTicket_() {
+  return PropertiesService.getScriptProperties().getProperty('CAMPO_ABERTURA_TICKET') || CONFIG.CUSTOM_FIELDS.DATA_ABERTURA_TICKET;
 }
 
 function extrairData_(dataHora) {

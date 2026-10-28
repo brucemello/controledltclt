@@ -116,6 +116,7 @@ function obterDashboard() {
     canaisAgendado: CHAT_CFG.CANAIS_AGENDADO,
     historico: obterHistoricoEnvios_(tz),
     usuario: emailUsuarioAtual_(),
+    campoAbertura: campoAberturaTicket_(),
     versao: VERSAO_DISPAROS,
     urlPlanilha: ss.getUrl(),
     jiraBase: CONFIG.JIRA_BASE_URL
@@ -189,7 +190,7 @@ function obterHistoricoEnvios_(tz) {
   if (!aba || aba.getLastRow() <= 1) return [];
   const qtd = Math.min(aba.getLastRow() - 1, 400);
   const linhas = aba.getRange(aba.getLastRow() - qtd + 1, 1, qtd, 4).getValues();
-  const relevantes = /^(NOTIFICAR|ROTINA_DIARIA|GERAR_RELATORIO|GATILHO|ATUALIZAR_REGRAS)/;
+  const relevantes = /^(NOTIFICAR|ROTINA_DIARIA|GERAR_RELATORIO|GATILHO|ATUALIZAR_REGRAS|CONFIG_CAMPO_CLT)/;
   return linhas
     .filter(l => relevantes.test(String(l[1])))
     .reverse()
@@ -237,4 +238,56 @@ function dashSalvarRegras(regras) {
 function dashDiagnostico() {
   exigirAcesso_();
   return diagnosticarInstalacao();
+}
+
+/* ===================== CAMPO DE ABERTURA DO TICKET ===================== */
+
+/**
+ * Lê uma issue no Jira e lista os campos com valor de data, com nome e valor,
+ * para identificar qual guarda a abertura do ticket (base do CLT).
+ */
+function dashInspecionarCampos(issueKey) {
+  exigirAcesso_();
+  const key = String(issueKey || '').trim().toUpperCase();
+  if (!/^[A-Z][A-Z0-9_]*-\d+$/.test(key)) throw new Error('Informe uma issue no formato PROJETO-123.');
+
+  const resp = chamarJiraApi_('/rest/api/2/issue/' + encodeURIComponent(key) + '?expand=names', 'get');
+  const nomes = resp.names || {};
+  const fields = resp.fields || {};
+  const atual = campoAberturaTicket_();
+  const pareceData = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}(T[\d:.]+[+-]\d{4})?$/.test(v);
+  const sugestivo = /abert|ticket|chamado|cliente|suporte|solicita/i;
+
+  const campos = Object.keys(fields)
+    .filter(id => pareceData(fields[id]) || id === atual)
+    .map(id => {
+      const v = fields[id];
+      const d = parseJiraDataHora_(v);
+      return {
+        id: id,
+        nome: nomes[id] || id,
+        valor: v === null || v === undefined ? '(vazio)' : String(v),
+        data: d ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') : '',
+        atual: id === atual,
+        sugerido: sugestivo.test(nomes[id] || '')
+      };
+    })
+    .sort((a, b) => (b.atual - a.atual) || (b.sugerido - a.sugerido) || a.nome.localeCompare(b.nome));
+
+  // Campos com "ticket" no nome (qualquer tipo), para conferir o número do ticket
+  const relacionados = Object.keys(fields)
+    .filter(id => /ticket/i.test(nomes[id] || '') && !pareceData(fields[id]) && fields[id] !== null && typeof fields[id] !== 'object')
+    .map(id => ({ id: id, nome: nomes[id], valor: String(fields[id]).substring(0, 60) }));
+
+  return { issue: key, campoAtual: atual, campos: campos, relacionados: relacionados };
+}
+
+function dashDefinirCampoAbertura(fieldId) {
+  exigirAcesso_();
+  const id = String(fieldId || '').trim();
+  if (!/^customfield_\d+$/.test(id)) throw new Error('Campo inválido: use o formato customfield_12345.');
+  const anterior = campoAberturaTicket_();
+  PropertiesService.getScriptProperties().setProperty('CAMPO_ABERTURA_TICKET', id);
+  registrarLog_('CONFIG_CAMPO_CLT', 'OK', 'Campo de abertura do ticket: ' + anterior + ' → ' + id + ' (por ' + (emailUsuarioAtual_() || '?') + ')');
+  return 'Campo de abertura do ticket definido como ' + id + '. Clique em "Atualizar do Jira" para recalcular o CLT.';
 }
